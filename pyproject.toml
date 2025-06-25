@@ -1,0 +1,109 @@
+[project]
+name = "tonel-smalltalk-parser"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Masashi Umezawa", email = "ume@softumeya.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8.4.1",
+    "ruff>=0.7.0",
+    "mdformat>=0.7.17",
+    "mdformat-gfm>=0.3.5",
+    "mdformat-frontmatter>=2.0.1",
+    "mdformat-tables>=0.4.1",
+    "pymarkdownlnt>=0.9.13",
+    "pre-commit>=4.0.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Assume Python 3.10+
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+# Other useful rulesets: I (isort), N (pep8-naming), UP (pyupgrade), B (flake8-bugbear)
+select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "TCH", "D", "RUF"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# Disable some docstring rules that are too strict for this project
+ignore = [
+    "D100",  # Missing docstring in public module
+    "D101",  # Missing docstring in public class
+    "D102",  # Missing docstring in public method
+    "D103",  # Missing docstring in public function
+    "D104",  # Missing docstring in public package
+    "D105",  # Missing docstring in magic method
+    "D107",  # Missing docstring in __init__
+    "D203",  # 1 blank line required before class docstring
+    "D213",  # Multi-line docstring summary should start at the second line
+]
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+# Group imports by type
+force-sort-within-sections = true
+split-on-trailing-comma = true
+
+[tool.mdformat]
+# Wrap lines at 88 characters (same as ruff)
+wrap = 88
+# Number of spaces per list level
+list_number_width = 2
+# Convert tabs to spaces
+end_of_line = "lf"
+
+[tool.pymarkdown]
+# Configure pymarkdown to use 88-character line length (matching ruff and mdformat)
+plugins.md013.line_length = 88
