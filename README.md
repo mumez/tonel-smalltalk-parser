@@ -1,5 +1,7 @@
 # Tonel and Smalltalk Parser
 
+[![Test](https://github.com/mumez/tonel-smalltalk-parser/actions/workflows/test.yml/badge.svg)](https://github.com/mumez/tonel-smalltalk-parser/actions/workflows/test.yml)
+
 A Python library for parsing Tonel-formatted Smalltalk source code with comprehensive
 BNF grammar definitions.
 
