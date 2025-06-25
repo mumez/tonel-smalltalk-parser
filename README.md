@@ -19,8 +19,8 @@ BNF grammar definitions.
 
 The complete BNF grammar specification is available in:
 
-- [English BNF Grammar](doc/tonel-and-smalltalk-bnf.md) - Comprehensive grammar
-  definition with implementation notes
+- [Tonel & Smalltalk BNF Grammar](doc/tonel-and-smalltalk-bnf.md) - Comprehensive
+  grammar definition with implementation notes
 
 ## Installation
 
