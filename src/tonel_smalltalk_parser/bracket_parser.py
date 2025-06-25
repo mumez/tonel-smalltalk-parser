@@ -1,4 +1,5 @@
 """Strict bracket boundary detection for Tonel method bodies.
+
 Implements the bracket counting + lexical analysis approach from the BNF specification.
 """
 
@@ -6,8 +7,9 @@ import re
 
 
 class BracketParser:
-    """Handles precise method body boundary detection using bracket counting
-    while respecting string literals, comments, and character literals.
+    """Handles precise method body boundary detection using bracket counting.
+
+    While respecting string literals, comments, and character literals.
     """
 
     def __init__(self):
@@ -70,6 +72,7 @@ class BracketParser:
 
     def _skip_string_literal(self, content: str, start_pos: int) -> int:
         """Skip over a string literal starting at start_pos.
+
         Handles escaped quotes ('').
 
         Args:
@@ -100,6 +103,7 @@ class BracketParser:
 
     def _skip_comment(self, content: str, start_pos: int) -> int:
         """Skip over a comment starting at start_pos.
+
         Handles escaped quotes ("").
 
         Args:
@@ -196,7 +200,10 @@ def test_bracket_parser():
     print(f"Test 3: {body!r}")
 
     # Test 4: Comment with bracket
-    content4 = 'TestClass >> commentWithBrackets [\n    "comment with ] bracket"\n    ^ self\n]'
+    content4 = (
+        "TestClass >> commentWithBrackets [\n    "
+        '"comment with ] bracket"\n    ^ self\n]'
+    )
     start = content4.find("[")
     body, end = parser.extract_method_body(content4, start)
     print(f"Test 4: {body!r}")

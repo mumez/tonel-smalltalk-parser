@@ -1,4 +1,5 @@
 """Smalltalk method body parser implementation.
+
 Based on the BNF grammar specification in doc/tonel-and-smalltalk-bnf.md.
 """
 
@@ -222,7 +223,8 @@ class SmalltalkLexer:
                                 token_type = self.keywords[value]
 
                             # Check if | should be treated as binary selector
-                            # This is a simplified approach - in real Smalltalk, context matters more
+                            # This is a simplified approach - in real Smalltalk,
+                            # context matters more
                             if token_type == TokenType.PIPE and self._is_binary_context(
                                 tokens, value
                             ):
@@ -245,6 +247,7 @@ class SmalltalkLexer:
 
     def _is_binary_context(self, tokens: list[Token], value: str) -> bool:
         """Determine if | should be treated as a binary selector based on context.
+
         This is a simplified heuristic.
         """
         if not tokens:
@@ -271,7 +274,8 @@ class SmalltalkLexer:
                         elif tokens[j].type == TokenType.PIPE:
                             pipe_count += 1
 
-                    # If we have colons but no pipes, this | separates parameters from body
+                    # If we have colons but no pipes, this |
+                    # separates parameters from body
                     if colon_count > 0 and pipe_count == 0:
                         return False
                     break
@@ -353,7 +357,7 @@ class SmalltalkParser:
         raise SyntaxError(f"Line {current.line}, Column {current.column}: {error_msg}")
 
     def _parse_sequence(self) -> SmalltalkSequence:
-        """Parse Smalltalk sequence: temps? statements?"""
+        """Parse Smalltalk sequence: temps? statements?."""
         temporaries = None
         statements = []
 
@@ -411,7 +415,10 @@ class SmalltalkParser:
         return Return(expression)
 
     def _parse_expression(self) -> SmalltalkExpression | None:
-        """Parse expression: assignment | cascade | keywordSend | binarySend | unarySend | primary."""
+        """Parse expression: assignment | cascade | keywordSend.
+
+        Also handles binarySend | unarySend | primary.
+        """
         if not self._current_token() or self._match(TokenType.EOF):
             return None
 
@@ -508,7 +515,10 @@ class SmalltalkParser:
         return receiver
 
     def _parse_primary(self) -> SmalltalkExpression:
-        """Parse primary expression: literal | variable | block | parenthesized expression."""
+        """Parse primary expression: literal | variable | block.
+
+        Also handles parenthesized expression.
+        """
         if self._match(TokenType.IDENTIFIER):
             return Variable(self._advance().value)
 
@@ -571,7 +581,8 @@ class SmalltalkParser:
             # Unexpected token
             token = self._current_token()
             raise SyntaxError(
-                f"Line {token.line}, Column {token.column}: Unexpected token {token.type}"
+                f"Line {token.line}, Column {token.column}: "
+                f"Unexpected token {token.type}"
             )
 
     def _parse_block(self) -> Block:

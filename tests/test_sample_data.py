@@ -9,7 +9,7 @@ class TestSampleTonelData:
     """Test cases using the sample Tonel code from the BNF specification."""
 
     def setup_method(self):
-        """Setup for each test method."""
+        """Set up for each test method."""
         self.parser = TonelParser()
 
     def test_bnf_specification_sample(self):

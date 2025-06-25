@@ -14,7 +14,7 @@ class TestTonelParser:
     """Test cases for the TonelParser class."""
 
     def setup_method(self):
-        """Setup for each test method."""
+        """Set up for each test method."""
         self.parser = TonelParser()
 
     def test_parser_initialization(self):

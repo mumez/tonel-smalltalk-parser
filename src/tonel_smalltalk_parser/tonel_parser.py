@@ -1,4 +1,5 @@
 """Tonel parser implementation.
+
 Manual parser that handles Tonel format parsing with precise bracket matching.
 """
 
@@ -53,7 +54,9 @@ class TonelParser:
             + r"([A-Z][a-zA-Z0-9_]*)\s*"  # class name
             + r"(?:(class)\s*)?"  # optional "class"
             + r">>\s*"  # >>
-            + r"((?:[a-zA-Z][a-zA-Z0-9_]*\s*:\s*[a-zA-Z0-9_]*\s*)*[a-zA-Z][a-zA-Z0-9_]*(?:\s*:\s*[a-zA-Z0-9_]*)?|[+\-*\/=><@%~|&?,]\s*[a-zA-Z0-9_]*)\s*"  # selector with args
+            + r"((?:[a-zA-Z][a-zA-Z0-9_]*\s*:\s*[a-zA-Z0-9_]*\s*)*"
+            + r"[a-zA-Z][a-zA-Z0-9_]*(?:\s*:\s*[a-zA-Z0-9_]*)?|"
+            + r"[+\-*\/=><@%~|&?,]\s*[a-zA-Z0-9_]*)\s*"  # selector with args
             + r"\[",  # opening bracket
             re.MULTILINE | re.DOTALL,
         )
