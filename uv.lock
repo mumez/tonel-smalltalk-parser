@@ -444,7 +444,9 @@ wheels = [
 name = "tonel-smalltalk-parser"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+
+[package.optional-dependencies]
+dev = [
     { name = "mdformat" },
     { name = "mdformat-frontmatter" },
     { name = "mdformat-gfm" },
@@ -457,15 +459,16 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mdformat", specifier = ">=0.7.17" },
-    { name = "mdformat-frontmatter", specifier = ">=2.0.1" },
-    { name = "mdformat-gfm", specifier = ">=0.3.5" },
-    { name = "mdformat-tables", specifier = ">=0.4.1" },
-    { name = "pre-commit", specifier = ">=4.0.1" },
-    { name = "pymarkdownlnt", specifier = ">=0.9.13" },
-    { name = "pytest", specifier = ">=8.4.1" },
-    { name = "ruff", specifier = ">=0.7.0" },
+    { name = "mdformat", marker = "extra == 'dev'", specifier = ">=0.7.17" },
+    { name = "mdformat-frontmatter", marker = "extra == 'dev'", specifier = ">=2.0.1" },
+    { name = "mdformat-gfm", marker = "extra == 'dev'", specifier = ">=0.3.5" },
+    { name = "mdformat-tables", marker = "extra == 'dev'", specifier = ">=0.4.1" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.1" },
+    { name = "pymarkdownlnt", marker = "extra == 'dev'", specifier = ">=0.9.13" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.1" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7.0" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "toolz"
