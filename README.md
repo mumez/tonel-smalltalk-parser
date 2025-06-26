@@ -28,23 +28,38 @@ The complete BNF grammar specification is available in:
 
 ## Installation
 
+### Install from Git Repository
+
+```bash
+# Install directly from GitHub
+pip install git+https://github.com/mumez/tonel-smalltalk-parser.git
+
+# Or install with development dependencies
+pip install "git+https://github.com/mumez/tonel-smalltalk-parser.git[dev]"
+```
+
+### Development Installation
+
 ```bash
 # Clone the repository
 git clone https://github.com/mumez/tonel-smalltalk-parser.git
 cd tonel-smalltalk-parser
 
-# Install dependencies with uv
+# Install in development mode with uv
 uv sync
+
+# Or with pip
+pip install -e ".[dev]"
 ```
 
 ## Usage
 
-### Basic Tonel Parsing
+### Basic Usage Example
 
 ```python
-from tonel_smalltalk_parser import TonelParser
+from tonel_smalltalk_parser import TonelParser, TonelFullParser
 
-# Parse a Tonel file
+# Basic Tonel parsing (structure only)
 parser = TonelParser()
 tonel_content = '''
 "A sample class for demonstration"
@@ -66,16 +81,15 @@ Counter >> value: anInteger [
 ]
 '''
 
+# Parse and access components
 result = parser.parse(tonel_content)
+print(f"Class: {result.class_definition.metadata.get('name')}")
+print(f"Methods: {len(result.methods)}")
 
-# Access parsed components
-print(f"Class type: {result.class_definition.type}")
-print(f"Comment: {result.comment}")
-print(f"Number of methods: {len(result.methods)}")
-
-for method in result.methods:
-    print(f"Method: {method.class_name} >> {method.selector}")
-    print(f"Class method: {method.is_class_method}")
+# Full validation (Tonel + Smalltalk syntax)
+full_parser = TonelFullParser()
+is_valid = full_parser.validate(tonel_content)
+print(f"Fully valid: {is_valid}")
 ```
 
 ### Validation

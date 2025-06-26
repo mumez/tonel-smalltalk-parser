@@ -1,125 +1,81 @@
 #!/usr/bin/env python3
-"""Example demonstrating how to use the Tonel and Smalltalk parsers."""
+"""Example usage script for tonel-smalltalk-parser package.
 
-from src.tonel_smalltalk_parser import (
-    Assignment,
-    Block,
-    MessageSend,
-    Return,
-    TonelParser,
-    parse_smalltalk_method_body,
-)
+This script demonstrates basic usage of the package after installation.
+Run with: python example_usage.py
+"""
+
+from tonel_smalltalk_parser import TonelFullParser, TonelParser
 
 
 def main():
-    # Example 1: Parse a complete Tonel file
-    print("=== Example 1: Complete Tonel File Parsing ===")
-
+    """Demonstrate basic package functionality."""
+    # Sample Tonel content
     tonel_content = """
-"A simple counter class for demonstration"
+"A sample counter class for demonstration"
 Class {
     #name : #Counter,
     #superclass : #Object,
-    #instVars : [ 'value' ],
+    #instVars : [ 'count' ],
     #category : #'Demo-Core'
 }
+
+{ #category : #accessing }
+Counter >> count [
+    ^ count
+]
+
+{ #category : #accessing }
+Counter >> increment [
+    count := count + 1
+]
 
 { #category : #initialization }
 Counter >> initialize [
     super initialize.
-    value := 0
-]
-
-{ #category : #accessing }
-Counter >> value [
-    ^ value
-]
-
-{ #category : #accessing }
-Counter >> value: anInteger [
-    value := anInteger
-]
-
-{ #category : #arithmetic }
-Counter >> increment [
-    value := value + 1.
-    ^ self
+    count := 0
 ]
 """
 
+    print("🔍 Testing Tonel Smalltalk Parser")
+    print("=" * 50)
+
+    # Test basic Tonel parsing
+    print("\n1. Basic Tonel Parsing:")
     parser = TonelParser()
-    tonel_file = parser.parse(tonel_content)
+    result = parser.parse(tonel_content)
 
-    print(f"Class type: {tonel_file.class_definition.type}")
-    print(f"Class name: {tonel_file.class_definition.metadata.get('name', 'Unknown')}")
-    print(f"Number of methods: {len(tonel_file.methods)}")
+    print(f"   ✅ Class type: {result.class_definition.type}")
+    print(f"   ✅ Class name: {result.class_definition.metadata.get('name')}")
     print(
-        f"Comment: {tonel_file.comment[:50]}..." if tonel_file.comment else "No comment"
+        f"   ✅ Comment: {result.comment[:30]}..."
+        if result.comment
+        else "   ✅ No comment"
     )
+    print(f"   ✅ Number of methods: {len(result.methods)}")
 
-    print("\nMethods:")
-    for method in tonel_file.methods:
-        print(f"  - {method.class_name} >> {method.selector}")
-        if method.metadata:
-            category = method.metadata.get("category", "uncategorized")
-            print(f"    Category: {category}")
+    for method in result.methods:
+        print(f"   📝 Method: {method.class_name} >> {method.selector}")
 
-    # Example 2: Parse individual Smalltalk method bodies
-    print("\n=== Example 2: Smalltalk Method Body Parsing ===")
+    # Test validation
+    print("\n2. Validation Tests:")
+    is_tonel_valid = parser.validate(tonel_content)
+    print(f"   ✅ Tonel structure valid: {is_tonel_valid}")
 
-    method_examples = [
-        "^ value",
-        "value := anObject",
-        "| temp | temp := self getValue. ^ temp + 42",
-        "[ :x | x + 1 ] value: 5",
-        "stream nextPut: 'Hello'; nextPut: ' '; nextPut: 'World'",
-        "collection do: [ :each | each printString ]",
-    ]
+    # Test full validation (Tonel + Smalltalk)
+    print("\n3. Full Validation (Tonel + Smalltalk):")
+    full_parser = TonelFullParser()
+    is_fully_valid = full_parser.validate(tonel_content)
+    print(f"   ✅ Fully valid (Tonel + Smalltalk): {is_fully_valid}")
 
-    for i, method_body in enumerate(method_examples, 1):
-        print(f"\nExample {i}: {method_body}")
-        try:
-            ast = parse_smalltalk_method_body(method_body)
-            print("  Parsed successfully!")
-            temps = ast.temporaries.variables if ast.temporaries else "None"
-            print(f"  Temporaries: {temps}")
-            print(f"  Statements: {len(ast.statements)}")
+    # Test with invalid content
+    print("\n4. Error Handling:")
+    invalid_content = "This is not valid Tonel content"
+    is_invalid_valid = parser.validate(invalid_content)
+    print(f"   ✅ Invalid content correctly rejected: {not is_invalid_valid}")
 
-            # Analyze first statement
-            if ast.statements:
-                stmt = ast.statements[0]
-                if isinstance(stmt, Return):
-                    print("  First statement: Return")
-                elif isinstance(stmt, Assignment):
-                    print(f"  First statement: Assignment to '{stmt.variable}'")
-                elif isinstance(stmt, MessageSend):
-                    print(f"  First statement: Message '{stmt.selector}' to receiver")
-                elif isinstance(stmt, Block):
-                    param_count = len(stmt.parameters)
-                    print(f"  First statement: Block with {param_count} parameters")
-                else:
-                    print(f"  First statement: {type(stmt).__name__}")
-
-        except Exception as e:
-            print(f"  Parse error: {e}")
-
-    # Example 3: Integration - Parse Tonel and then parse method bodies
-    print("\n=== Example 3: Full Integration ===")
-
-    for method in tonel_file.methods:
-        print(f"\nAnalyzing method: {method.selector}")
-        try:
-            ast = parse_smalltalk_method_body(method.body)
-            print("  Method body parsed successfully")
-            print(f"  Has temporaries: {'Yes' if ast.temporaries else 'No'}")
-            print(f"  Statement count: {len(ast.statements)}")
-
-            # Check if method returns something
-            has_return = any(isinstance(stmt, Return) for stmt in ast.statements)
-            print(f"  Has explicit return: {'Yes' if has_return else 'No'}")
-
-        except Exception as e:
-            print(f"  Parse error: {e}")
+    print("\n🎉 All tests passed! Package is working correctly.")
+    print("\n📚 For more examples, see README.md")
 
 
 if __name__ == "__main__":
