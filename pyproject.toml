@@ -42,6 +42,19 @@ Repository = "https://github.com/mumez/tonel-smalltalk-parser"
 Issues = "https://github.com/mumez/tonel-smalltalk-parser/issues"
 Documentation = "https://github.com/mumez/tonel-smalltalk-parser/blob/main/doc/tonel-and-smalltalk-bnf.md"
 
+[tool.uv]
+# Include dev dependencies in the default environment for CI/development
+dev-dependencies = [
+    "pytest>=8.4.1",
+    "ruff>=0.7.0",
+    "mdformat>=0.7.17",
+    "mdformat-gfm>=0.3.5",
+    "mdformat-frontmatter>=2.0.1",
+    "mdformat-tables>=0.4.1",
+    "pymarkdownlnt>=0.9.13",
+    "pre-commit>=4.0.1",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

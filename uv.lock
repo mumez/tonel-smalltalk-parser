@@ -457,6 +457,18 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "mdformat" },
+    { name = "mdformat-frontmatter" },
+    { name = "mdformat-gfm" },
+    { name = "mdformat-tables" },
+    { name = "pre-commit" },
+    { name = "pymarkdownlnt" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "mdformat", marker = "extra == 'dev'", specifier = ">=0.7.17" },
@@ -469,6 +481,18 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7.0" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mdformat", specifier = ">=0.7.17" },
+    { name = "mdformat-frontmatter", specifier = ">=2.0.1" },
+    { name = "mdformat-gfm", specifier = ">=0.3.5" },
+    { name = "mdformat-tables", specifier = ">=0.4.1" },
+    { name = "pre-commit", specifier = ">=4.0.1" },
+    { name = "pymarkdownlnt", specifier = ">=0.9.13" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "ruff", specifier = ">=0.7.0" },
+]
 
 [[package]]
 name = "toolz"
