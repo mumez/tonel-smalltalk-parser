@@ -1,5 +1,8 @@
 """Tests for the Smalltalk method body parser."""
 
+import os
+import tempfile
+
 import pytest
 
 from src.tonel_smalltalk_parser.smalltalk_parser import (
@@ -432,6 +435,118 @@ class TestIntegration:
         ast = parse_smalltalk_method_body(method_with_whitespace)
         assert len(ast.temporaries.variables) == 1
         assert len(ast.statements) == 2
+
+
+class TestSmalltalkParserValidation:
+    """Test cases for SmalltalkParser validation methods."""
+
+    def setup_method(self):
+        """Set up for each test method."""
+        self.parser = SmalltalkParser()
+
+    def test_validate_valid_smalltalk_code(self):
+        """Test validate returns True for valid Smalltalk code."""
+        valid_code = "| x | x := 42. ^ x + 1"
+        assert self.parser.validate(valid_code) is True
+
+    def test_validate_simple_expression(self):
+        """Test validate returns True for simple expressions."""
+        assert self.parser.validate("^ self") is True
+        assert self.parser.validate("1 + 2") is True
+        assert self.parser.validate("'hello world'") is True
+
+    def test_validate_empty_code(self):
+        """Test validate returns True for empty code."""
+        assert self.parser.validate("") is True
+
+    def test_validate_invalid_syntax(self):
+        """Test validate returns False for invalid syntax."""
+        assert self.parser.validate("^ [") is False  # Unclosed bracket
+        assert self.parser.validate("x := ") is False  # Incomplete assignment
+        assert self.parser.validate("| unclosed temporaries") is False
+
+    def test_validate_complex_expressions(self):
+        """Test validate returns True for complex valid expressions."""
+        complex_code = """
+        | temp result |
+        temp := self getValue.
+        result := temp + 42.
+        collection do: [ :each | each printOn: stream ].
+        ^ result
+        """
+        assert self.parser.validate(complex_code) is True
+
+    def test_validate_blocks(self):
+        """Test validate returns True for various block expressions."""
+        assert self.parser.validate("[ 1 + 2 ]") is True
+        assert self.parser.validate("[ :x | x * 2 ]") is True
+        assert self.parser.validate("[ :x :y | x + y ]") is True
+
+    def test_validate_cascades(self):
+        """Test validate returns True for cascade expressions."""
+        assert self.parser.validate("stream nextPut: 'a'; nextPut: 'b'") is True
+
+    def test_validate_arrays(self):
+        """Test validate returns True for array expressions."""
+        assert self.parser.validate("#(1 2 3)") is True
+        assert self.parser.validate("{ 1 + 2. 'hello' }") is True
+
+    def test_validate_malformed_blocks(self):
+        """Test validate returns False for malformed blocks."""
+        assert self.parser.validate("[ :x") is False  # Missing closing bracket
+        # Note: "[ :x | ]" is actually valid - empty block body is allowed
+
+    def test_validate_from_file_valid(self):
+        """Test validate_from_file returns True for valid file."""
+        valid_code = "| x | x := 42. ^ x"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".st", delete=False) as f:
+            f.write(valid_code)
+            f.flush()
+            try:
+                assert self.parser.validate_from_file(f.name) is True
+            finally:
+                os.unlink(f.name)
+
+    def test_validate_from_file_invalid(self):
+        """Test validate_from_file returns False for invalid file."""
+        invalid_code = "^ ["  # Unclosed bracket
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".st", delete=False) as f:
+            f.write(invalid_code)
+            f.flush()
+            try:
+                assert self.parser.validate_from_file(f.name) is False
+            finally:
+                os.unlink(f.name)
+
+    def test_validate_from_file_empty(self):
+        """Test validate_from_file returns True for empty file."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".st", delete=False) as f:
+            f.write("")
+            f.flush()
+            try:
+                assert self.parser.validate_from_file(f.name) is True
+            finally:
+                os.unlink(f.name)
+
+    def test_validate_from_file_nonexistent(self):
+        """Test validate_from_file returns False for nonexistent file."""
+        assert self.parser.validate_from_file("/nonexistent/file.st") is False
+
+    def test_validate_pseudo_variables(self):
+        """Test validate returns True for pseudo variables."""
+        assert self.parser.validate("nil") is True
+        assert self.parser.validate("true") is True
+        assert self.parser.validate("false") is True
+        assert self.parser.validate("self") is True
+        assert self.parser.validate("super") is True
+
+    def test_validate_literals(self):
+        """Test validate returns True for various literals."""
+        assert self.parser.validate("42") is True
+        assert self.parser.validate("3.14") is True
+        assert self.parser.validate("'string'") is True
+        assert self.parser.validate("#symbol") is True
+        assert self.parser.validate("$c") is True  # Character literal
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ from enum import Enum
 import re
 from typing import Any, Optional
 
+from .base_parser import BaseParser
+
 
 class TokenType(Enum):
     """Token types for Smalltalk lexical analysis."""
@@ -309,7 +311,7 @@ class SmalltalkLexer:
         ]
 
 
-class SmalltalkParser:
+class SmalltalkParser(BaseParser):
     """Parser for Smalltalk method bodies."""
 
     def __init__(self):

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
+from .base_parser import BaseParser
 from .bracket_parser import BracketParser
 
 
@@ -38,7 +39,7 @@ class TonelFile:
     methods: list[MethodDefinition]
 
 
-class TonelParser:
+class TonelParser(BaseParser):
     """Manual Tonel parser that handles Tonel format parsing."""
 
     def __init__(self):
@@ -199,9 +200,3 @@ class TonelParser:
                 result[key] = value_str
 
         return result
-
-    def parse_file(self, filepath: str) -> TonelFile:
-        """Parse Tonel file and return structured representation."""
-        with open(filepath, encoding="utf-8") as f:
-            content = f.read()
-        return self.parse(content)

@@ -1,5 +1,8 @@
 """Test cases for Tonel parser functionality."""
 
+import os
+import tempfile
+
 import pytest
 
 from tonel_smalltalk_parser import (
@@ -304,6 +307,119 @@ class TestTonelDataStructures:
         assert tonel_file.class_definition == class_def
         assert len(tonel_file.methods) == 1
         assert tonel_file.methods[0] == method
+
+
+class TestTonelParserValidation:
+    """Test cases for TonelParser validation methods."""
+
+    def setup_method(self):
+        """Set up for each test method."""
+        self.parser = TonelParser()
+
+    def test_validate_valid_tonel_content(self):
+        """Test validate returns True for valid Tonel content."""
+        valid_content = """Class {
+    #name : #Counter,
+    #superclass : #Object,
+    #category : #'Demo-Core'
+}
+
+Counter >> increment [
+    count := count + 1
+]"""
+        assert self.parser.validate(valid_content) is True
+
+    def test_validate_invalid_tonel_content(self):
+        """Test validate returns False for invalid Tonel content."""
+        invalid_content = "This is not valid Tonel content"
+        assert self.parser.validate(invalid_content) is False
+
+    def test_validate_empty_content(self):
+        """Test validate returns False for empty content."""
+        assert self.parser.validate("") is False
+
+    def test_validate_malformed_class_definition(self):
+        """Test validate returns False for malformed class definition."""
+        malformed_content = """Class {
+    #name : #Counter
+    # missing closing brace"""
+        assert self.parser.validate(malformed_content) is False
+
+    def test_validate_class_only(self):
+        """Test validate returns True for class definition only."""
+        class_only = """Class {
+    #name : #Counter,
+    #superclass : #Object
+}"""
+        assert self.parser.validate(class_only) is True
+
+    def test_validate_with_comment(self):
+        """Test validate returns True for content with comment."""
+        with_comment = """"A test class"
+Class {
+    #name : #TestClass,
+    #superclass : #Object
+}"""
+        assert self.parser.validate(with_comment) is True
+
+    def test_validate_trait_definition(self):
+        """Test validate returns True for trait definition."""
+        trait_content = """Trait {
+    #name : #TTestTrait,
+    #category : #'Test-Traits'
+}"""
+        assert self.parser.validate(trait_content) is True
+
+    def test_validate_extension_definition(self):
+        """Test validate returns True for extension definition."""
+        extension_content = """Extension {
+    #name : #Object,
+    #category : #'*Test-Extensions'
+}"""
+        assert self.parser.validate(extension_content) is True
+
+    def test_validate_from_file_valid(self):
+        """Test validate_from_file returns True for valid file."""
+        valid_content = """Class {
+    #name : #TestClass,
+    #superclass : #Object
+}"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".st", delete=False) as f:
+            f.write(valid_content)
+            f.flush()
+            try:
+                assert self.parser.validate_from_file(f.name) is True
+            finally:
+                os.unlink(f.name)
+
+    def test_validate_from_file_invalid(self):
+        """Test validate_from_file returns False for invalid file."""
+        invalid_content = "Invalid Tonel content"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".st", delete=False) as f:
+            f.write(invalid_content)
+            f.flush()
+            try:
+                assert self.parser.validate_from_file(f.name) is False
+            finally:
+                os.unlink(f.name)
+
+    def test_validate_from_file_nonexistent(self):
+        """Test validate_from_file returns False for nonexistent file."""
+        assert self.parser.validate_from_file("/nonexistent/file.st") is False
+
+    def test_validate_method_with_syntax_error(self):
+        """Test validate returns True even if method body has syntax errors."""
+        # TonelParser only validates Tonel structure, not Smalltalk syntax
+        content_with_bad_method = """Class {
+    #name : #TestClass,
+    #superclass : #Object
+}
+
+TestClass >> badMethod [
+    this is not valid smalltalk syntax
+]"""
+        # TonelParser should return True because it only validates Tonel structure
+        assert self.parser.validate(content_with_bad_method) is True
 
 
 if __name__ == "__main__":

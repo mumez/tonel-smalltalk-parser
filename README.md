@@ -11,6 +11,10 @@ BNF grammar definitions.
   references
 - **Smalltalk Method Body Parser**: Complete recursive descent parser for Smalltalk
   syntax
+- **Full Validation Parser**: Combined parser that validates both Tonel structure and
+  Smalltalk method body syntax
+- **Validation Methods**: Built-in validation for all parsers with file and string
+  support
 - **Precise Bracket Matching**: Correctly handles nested blocks and string literals
 - **Type Annotations**: Full type support for static analysis
 - **Comprehensive Testing**: Extensive test suite covering real-world scenarios
@@ -72,6 +76,54 @@ print(f"Number of methods: {len(result.methods)}")
 for method in result.methods:
     print(f"Method: {method.class_name} >> {method.selector}")
     print(f"Class method: {method.is_class_method}")
+```
+
+### Validation
+
+All parsers provide validation methods for checking syntax without parsing:
+
+```python
+from tonel_smalltalk_parser import TonelParser, SmalltalkParser, TonelFullParser
+
+# Validate Tonel structure only
+tonel_parser = TonelParser()
+is_valid_tonel = tonel_parser.validate(tonel_content)
+print(f"Valid Tonel structure: {is_valid_tonel}")
+
+# Validate from file
+is_valid_file = tonel_parser.validate_from_file("example.st")
+
+# Validate Smalltalk method body
+smalltalk_parser = SmalltalkParser()
+method_body = "| x | x := 42. ^ x + 1"
+is_valid_smalltalk = smalltalk_parser.validate(method_body)
+print(f"Valid Smalltalk: {is_valid_smalltalk}")
+
+# Validate both Tonel structure AND Smalltalk method bodies
+full_parser = TonelFullParser()
+is_fully_valid = full_parser.validate(tonel_content)
+print(f"Valid Tonel + Smalltalk: {is_fully_valid}")
+```
+
+### Complete Validation with TonelFullParser
+
+For comprehensive validation that checks both Tonel structure and Smalltalk syntax:
+
+```python
+from tonel_smalltalk_parser import TonelFullParser
+
+# TonelFullParser validates both Tonel format and Smalltalk method bodies
+parser = TonelFullParser()
+
+# This will validate:
+# 1. Tonel file structure and metadata
+# 2. Each method's Smalltalk syntax
+result = parser.parse(tonel_content)  # Raises SyntaxError if invalid Smalltalk
+is_valid = parser.validate(tonel_content)  # Returns False if either is invalid
+
+# Parse from file with full validation
+result = parser.parse_from_file("complete_example.st")
+is_file_valid = parser.validate_from_file("complete_example.st")
 ```
 
 ### Smalltalk Method Body Parsing
@@ -143,12 +195,31 @@ pre-commit run --all-files
 
 ### Architecture
 
-The parser implements a two-stage architecture:
+The parser implements a multi-parser architecture:
 
+1. **BaseParser**: Abstract base class providing common validation and file handling
+   methods
 1. **TonelParser**: Handles the outer Tonel file structure using regex patterns and
    precise bracket matching
 1. **SmalltalkParser**: Processes method bodies with a complete recursive descent parser
+1. **TonelFullParser**: Combines both parsers for complete validation of Tonel files
+   with Smalltalk method body syntax checking
 1. **BracketParser**: Utility class for accurate bracket boundary detection
+
+#### Parser Comparison
+
+| Parser            | Validates              | Use Case                             |
+| ----------------- | ---------------------- | ------------------------------------ |
+| `TonelParser`     | Tonel structure only   | Fast Tonel file structure validation |
+| `SmalltalkParser` | Smalltalk syntax only  | Method body syntax validation        |
+| `TonelFullParser` | Both Tonel + Smalltalk | Complete file validation             |
+
+All parsers inherit from `BaseParser` and provide:
+
+- `validate(content: str) -> bool`: Validate string content
+- `validate_from_file(filepath: str) -> bool`: Validate file content
+- `parse(content: str)`: Parse string content
+- `parse_from_file(filepath: str)`: Parse file content
 
 ## License
 

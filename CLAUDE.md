@@ -103,3 +103,137 @@ When implementing parsers based on this grammar:
 1. Properly track nested block structures (`[ [ ] ]`)
 1. Implement STON parsing for metadata sections
 1. Consider Unicode support for identifier and string content
+
+## Coding Standards and Style Guidelines
+
+This project follows strict coding standards enforced by pre-commit hooks. When writing
+code, adhere to these guidelines to avoid linting errors:
+
+### Line Length
+
+- **Maximum 88 characters per line** (configured in pyproject.toml)
+- Break long lines using parentheses, not backslashes
+- For long strings, prefer multi-line string formatting or f-string continuation
+
+**Good:**
+
+```python
+error_msg = (
+    f"Invalid Smalltalk syntax in method "
+    f"{method.class_name}>>{method.selector}: {error}"
+)
+```
+
+**Bad:**
+
+```python
+error_msg = f"Invalid Smalltalk syntax in method {method.class_name}>>{method.selector}: {error}"
+```
+
+### Docstring Format
+
+- Use triple quotes (`"""`) for all docstrings
+- **Always include a blank line between summary and detailed description**
+- Follow Google/Sphinx docstring style
+
+**Good:**
+
+```python
+def validate(self, content: str) -> bool:
+    """Validate if the content can be parsed.
+
+    Args:
+        content: The content as a string
+
+    Returns:
+        bool: True if content can be parsed successfully, False otherwise
+    """
+```
+
+**Bad:**
+
+```python
+def validate(self, content: str) -> bool:
+    """Validate if the content can be parsed.
+    Args: ...  # Missing blank line after summary
+    """
+```
+
+### Import Organization
+
+- Group imports: standard library, third-party, local imports
+- Use absolute imports within the package
+- Sort imports alphabetically within groups
+
+**Good:**
+
+```python
+import os
+import tempfile
+
+import pytest
+
+from .base_parser import BaseParser
+from .tonel_parser import TonelParser
+```
+
+### File Formatting
+
+- **Always end files with a single newline**
+- Remove trailing whitespace from all lines
+- Use 4 spaces for indentation (no tabs)
+
+### Exception Handling
+
+- Be specific about exception types
+- Use `except (Type1, Type2)` for multiple exception types
+- Always use `from e` when re-raising exceptions with context
+
+**Good:**
+
+```python
+try:
+    self.parse(content)
+    return True
+except (ValueError, SyntaxError, Exception):
+    return False
+```
+
+### Type Annotations
+
+- Include type hints for all function parameters and return values
+- Use `from typing import` for complex types
+- Prefer built-in types over typing equivalents when possible (e.g., `list[str]` over
+  `List[str]`)
+
+### Code Quality Tools Used
+
+- **ruff**: Linting and code quality (replaces flake8, isort, etc.)
+- **ruff format**: Code formatting (replaces black)
+- **mdformat**: Markdown formatting
+- **markdownlint**: Markdown linting
+
+### Pre-commit Hook Commands
+
+Always run before committing:
+
+```bash
+pre-commit run --all-files
+```
+
+Or automatically install hooks:
+
+```bash
+pre-commit install
+```
+
+### Common Linting Errors to Avoid
+
+1. **E501**: Line too long (>88 chars)
+1. **D205**: Missing blank line after docstring summary
+1. **F401**: Imported but unused
+1. **F841**: Local variable assigned but never used
+1. **W292**: No newline at end of file
+
+By following these guidelines, your code will pass all pre-commit checks without
+requiring manual fixes.
