@@ -163,7 +163,10 @@ class SmalltalkLexer:
         # Token patterns (order matters)
         self.token_patterns = [
             (TokenType.COMMENT, r'"([^"]|"")*"'),
-            (TokenType.PRAGMA, r"<[^>]*>"),  # Pragma like <script>, <primitive: 123>
+            (
+                TokenType.PRAGMA,
+                r"<[^>\s]+(?:\s*:\s*[^>\s]+)*>",
+            ),  # Pragma like <script>, <primitive: 123>
             (TokenType.STRING, r"'([^']|'')*'"),
             (TokenType.CHARACTER, r"\$\S"),
             (TokenType.LPARRAY, r"#\("),
