@@ -165,12 +165,16 @@ class SmalltalkLexer:
             (TokenType.COMMENT, r'"([^"]|"")*"'),
             (
                 TokenType.PRAGMA,
-                r"<[^>\s]+(?:\s*:\s*[^>\s]+)*>",
-            ),  # Pragma like <script>, <primitive: 123>
+                r"<[a-zA-Z][^>]*>",
+            ),  # Pragma like <script>, <primitive: 'name' module: 'module'>
             (TokenType.STRING, r"'([^']|'')*'"),
             (TokenType.CHARACTER, r"\$\S"),
             (TokenType.LPARRAY, r"#\("),
-            (TokenType.SYMBOL, r"#[a-zA-Z][a-zA-Z0-9_]*|#\'([^\']|\'\')*\'"),
+            (
+                TokenType.SYMBOL,
+                r"#[a-zA-Z][a-zA-Z0-9_]*(?:[a-zA-Z0-9_]*:)*|"
+                r"#\'([^\']|\'\')*\'|#[\\+*\/=><@%~&\-?,]+",
+            ),
             (TokenType.NUMBER, r"[+-]?\d+(\.\d+)?([eE][+-]?\d+)?"),
             (TokenType.ASSIGN, r":="),
             (TokenType.RETURN, r"\^"),
@@ -188,14 +192,19 @@ class SmalltalkLexer:
             (TokenType.IDENTIFIER, r"[a-zA-Z][a-zA-Z0-9_]*"),
             (
                 TokenType.BINARY_SELECTOR,
-                r"[\\+*\/=><@%~&\-?,]+",
-            ),  # Add comma for binary selector
+                r"<=|>=|~=|[\\+*\/=><@%~&\-?,]",
+            ),  # Add comma for binary selector, multi-char operators first
             (TokenType.WHITESPACE, r"\s+"),
         ]
 
         # Compile patterns
         self.compiled_patterns = [
-            (token_type, re.compile(pattern))
+            (
+                token_type,
+                re.compile(
+                    pattern, re.DOTALL if token_type == TokenType.COMMENT else 0
+                ),
+            )
             for token_type, pattern in self.token_patterns
         ]
 
@@ -211,64 +220,77 @@ class SmalltalkLexer:
     def tokenize(self, text: str) -> list[Token]:
         """Tokenize Smalltalk source code."""
         tokens = []
-        lines = text.split("\n")
+        pos = 0
+        line_num = 1
+        line_start = 0
 
-        for line_num, line in enumerate(lines, 1):
-            col = 0
-            while col < len(line):
-                # Try to match each pattern
-                matched = False
-                for token_type, pattern in self.compiled_patterns:
-                    match = pattern.match(line, col)
-                    if match:
-                        value = match.group(0)
+        while pos < len(text):
+            # Try to match each pattern
+            matched = False
+            for token_type, pattern in self.compiled_patterns:
+                match = pattern.match(text, pos)
+                if match:
+                    value = match.group(0)
 
-                        # Skip whitespace tokens
-                        if token_type != TokenType.WHITESPACE:
-                            # Check for keywords
-                            if (
-                                token_type == TokenType.IDENTIFIER
-                                and value in self.keywords
-                            ):
-                                token_type = self.keywords[value]
+                    # Calculate line and column for this token
+                    token_line = line_num
+                    token_col = pos - line_start + 1
 
-                            # Check if | should be treated as binary selector
-                            # This is a simplified approach - in real Smalltalk,
-                            # context matters more
-                            if token_type == TokenType.PIPE and self._is_binary_context(
-                                tokens, value
-                            ):
-                                token_type = TokenType.BINARY_SELECTOR
+                    # Skip whitespace tokens
+                    if token_type != TokenType.WHITESPACE:
+                        # Check for keywords
+                        if (
+                            token_type == TokenType.IDENTIFIER
+                            and value in self.keywords
+                        ):
+                            token_type = self.keywords[value]
 
-                            tokens.append(Token(token_type, value, line_num, col + 1))
+                        # Check if | should be treated as binary selector
+                        if token_type == TokenType.PIPE and self._is_binary_context(
+                            tokens, value
+                        ):
+                            token_type = TokenType.BINARY_SELECTOR
 
-                        col = match.end()
-                        matched = True
-                        break
+                        tokens.append(Token(token_type, value, token_line, token_col))
 
-                if not matched:
-                    # Skip unknown characters
-                    col += 1
+                    # Update position and line tracking
+                    new_pos = match.end()
+                    # Count newlines in the matched text
+                    newline_count = value.count("\n")
+                    if newline_count > 0:
+                        line_num += newline_count
+                        # Find the start of the last line
+                        last_newline = value.rfind("\n")
+                        line_start = pos + last_newline + 1
 
-        tokens.append(
-            Token(TokenType.EOF, "", len(lines), len(lines[-1]) if lines else 0)
-        )
+                    pos = new_pos
+                    matched = True
+                    break
+
+            if not matched:
+                # Handle newlines for line tracking
+                if text[pos] == "\n":
+                    line_num += 1
+                    line_start = pos + 1
+                # Skip unknown characters
+                pos += 1
+
+        # Calculate final line number for EOF token
+        final_line = line_num
+        final_col = pos - line_start
+        tokens.append(Token(TokenType.EOF, "", final_line, final_col))
         return tokens
 
     def _is_binary_context(self, tokens: list[Token], value: str) -> bool:
         """Determine if | should be treated as a binary selector based on context.
 
-        This is a simplified heuristic.
+        Returns True if | should be treated as binary selector, False if it's a pipe.
         """
         if not tokens:
             return False
 
-        # Look for unclosed brackets and pipes to understand context
+        # Look for the current block context by finding the most recent unmatched [
         bracket_count = 0
-        pipe_count = 0
-        colon_count = 0
-
-        # Scan from the end to understand the current context
         for i in range(len(tokens) - 1, -1, -1):
             token = tokens[i]
             if token.type == TokenType.RBRACKET:
@@ -276,33 +298,83 @@ class SmalltalkLexer:
             elif token.type == TokenType.LBRACKET:
                 bracket_count -= 1
                 if bracket_count < 0:
-                    # We're inside a block
-                    # Count colons and pipes since this opening bracket
-                    for j in range(i + 1, len(tokens)):
-                        if tokens[j].type == TokenType.COLON:
-                            colon_count += 1
-                        elif tokens[j].type == TokenType.PIPE:
+                    # Found the opening bracket for current block
+                    # Analyze the block content from position i+1 to end
+                    block_start = i + 1
+                    block_tokens = tokens[block_start:]
+
+                    # Parse block structure: [ :param1 :param2 | temp1 temp2 | stmts ]
+                    pos = 0
+                    param_count = 0
+                    pipe_count = 0
+
+                    # Count parameters (: followed by identifier)
+                    while pos < len(block_tokens):
+                        if (
+                            pos < len(block_tokens) - 1
+                            and block_tokens[pos].type == TokenType.COLON
+                            and block_tokens[pos + 1].type == TokenType.IDENTIFIER
+                        ):
+                            param_count += 1
+                            pos += 2
+                        else:
+                            break
+
+                    # Count pipes in the block
+                    for bt in block_tokens:
+                        if bt.type == TokenType.PIPE:
                             pipe_count += 1
 
-                    # If we have colons but no pipes, this |
-                    # separates parameters from body
-                    if colon_count > 0 and pipe_count == 0:
-                        return False
-                    break
-            elif token.type == TokenType.PIPE:
-                pipe_count += 1
+                    # Decision logic:
+                    # - If we have parameters but no pipes yet, next | separates params
+                    # - If we have one pipe after parameters, we might be in temporaries
+                    # - If odd number of pipes, next | closes temporaries
+                    # - If even pipes and last token is receiver, | is binary
 
-        # General case: look for unclosed pipes (temporary variables)
+                    if param_count > 0 and pipe_count == 0:
+                        # Parameters but no separator yet - this | separates params
+                        return False
+
+                    if pipe_count % 2 == 1:
+                        # Odd number of pipes means we're in temporaries, | closes them
+                        return False
+
+                    # Special case: if we have even pipes and the last token
+                    # is an identifier that could be a temp variable (not followed by
+                    # something that makes it a receiver), treat | as closing temps
+                    if (
+                        pipe_count > 0
+                        and pipe_count % 2 == 0
+                        and len(block_tokens) > 0
+                        and block_tokens[-1].type == TokenType.IDENTIFIER
+                    ):
+                        # Look for pattern: | temp1 temp2 | (temporaries context)
+                        # vs temp1 | temp2 (binary message context)
+
+                        # If the identifier comes after a pipe, it's likely a temporary
+                        temp_after_pipe = False
+                        for j in range(len(block_tokens) - 1, -1, -1):
+                            if block_tokens[j].type == TokenType.IDENTIFIER:
+                                continue
+                            elif block_tokens[j].type == TokenType.PIPE:
+                                temp_after_pipe = True
+                                break
+                            else:
+                                break
+
+                        if temp_after_pipe:
+                            return False  # This | closes temporaries
+
+                    break
+
+        # If not in a block, use general heuristic
+        # General case: odd number of pipes means we're in temporaries
         all_pipe_count = sum(1 for t in tokens if t.type == TokenType.PIPE)
         if all_pipe_count % 2 == 1:
-            # We have an unclosed pipe, so this | closes temporaries
             return False
 
-        # Look at the last token
+        # Look at the last token - if it's a potential receiver, | is binary
         last_token = tokens[-1]
-
-        # If the last token could be a receiver (identifier, literal, etc.)
-        # then | is likely a binary selector
         return last_token.type in [
             TokenType.IDENTIFIER,
             TokenType.NUMBER,
@@ -432,6 +504,8 @@ class SmalltalkParser(BaseParser):
         """Parse return statement: ^ expression."""
         self._consume(TokenType.RETURN)
         expression = self._parse_expression()
+        if expression is None:
+            raise SyntaxError("Expected expression after '^'")
         return Return(expression)
 
     def _parse_expression(self) -> SmalltalkExpression | None:
@@ -589,6 +663,8 @@ class SmalltalkParser(BaseParser):
             self._advance()  # consume (
             expr = self._parse_expression()
             self._consume(TokenType.RPAREN)
+            if expr is None:
+                raise SyntaxError("Expected expression inside parentheses")
             return expr
 
         elif self._match(TokenType.LBRACE):
@@ -606,7 +682,7 @@ class SmalltalkParser(BaseParser):
             )
 
     def _parse_block(self) -> Block:
-        """Parse block: [ parameters? | body ]."""
+        """Parse block: [ parameters? | temporaries? body ]."""
         self._consume(TokenType.LBRACKET)
 
         parameters = []
@@ -620,11 +696,21 @@ class SmalltalkParser(BaseParser):
         if parameters and self._match(TokenType.PIPE):
             self._advance()
 
-        # Parse block body
+        # Parse block body (which may include temporaries)
         body = None
         if not self._match(TokenType.RBRACKET, TokenType.EOF):
-            # Parse the block body as a sequence (like a method body)
-            body = self._parse_sequence()
+            # Parse temporaries and statements separately for blocks
+            temporaries = None
+            statements = []
+
+            # Check if we have temporaries (another | after parameters)
+            if self._match(TokenType.PIPE):
+                temporaries = self._parse_temporaries()
+
+            # Parse statements
+            statements = self._parse_statements()
+
+            body = SmalltalkSequence(temporaries, statements)
 
         if self._match(TokenType.EOF):
             raise SyntaxError("Unclosed block - missing ']'")
