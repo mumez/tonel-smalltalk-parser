@@ -182,8 +182,8 @@ class SmalltalkLexer:
             (TokenType.LBARRAY, r"#\["),
             (
                 TokenType.SYMBOL,
-                r"#[a-zA-Z][a-zA-Z0-9_]*(?:[a-zA-Z0-9_]*:)*|"
-                r"#\'([^\']|\'\')*\'|#[\\+*\/=><@%~&\-?,]+",
+                r"#[a-zA-Z_][a-zA-Z0-9_]*(?:[a-zA-Z0-9_]*:)*|"
+                r"#\'([^\']|\'\')*\'|#[\\+*\/=><@%~&\-?,\|]+",
             ),
             (
                 TokenType.NUMBER,
@@ -194,19 +194,22 @@ class SmalltalkLexer:
             (TokenType.CASCADE, r";"),
             (TokenType.PERIOD, r"\."),
             (TokenType.PIPE, r"\|"),  # Keep this before binary selector
-            (TokenType.COLON, r":"),
             (TokenType.LPAREN, r"\("),
             (TokenType.RPAREN, r"\)"),
             (TokenType.LBRACKET, r"\["),
             (TokenType.RBRACKET, r"\]"),
             (TokenType.LBRACE, r"\{"),
             (TokenType.RBRACE, r"\}"),
-            (TokenType.KEYWORD, r"[a-zA-Z][a-zA-Z0-9_]*:"),
+            (
+                TokenType.KEYWORD,
+                r"[a-zA-Z][a-zA-Z0-9_]*:(?!=)",
+            ),  # Keyword not followed by =
             (TokenType.IDENTIFIER, r"[a-zA-Z][a-zA-Z0-9_]*"),
             (
                 TokenType.BINARY_SELECTOR,
-                r"<=|>=|~=|[\\+*\/=><@%~&\-?,]",
-            ),  # Add comma for binary selector, multi-char operators first
+                r"[\\+*\/=><@%~&\-?,\|]+",
+            ),  # Any sequence of binary characters per BNF
+            (TokenType.COLON, r":"),
             (TokenType.WHITESPACE, r"\s+"),
         ]
 
@@ -505,6 +508,18 @@ class SmalltalkParser(BaseParser):
         statements = []
 
         while not self._match(TokenType.EOF, TokenType.RBRACKET):
+            # Skip comments between statements
+            self._skip_comments()
+
+            # Check if we've reached the end after skipping comments
+            if self._match(TokenType.EOF, TokenType.RBRACKET):
+                break
+
+            # Skip standalone periods after comments (common in Smalltalk)
+            if self._match(TokenType.PERIOD):
+                self._advance()
+                continue
+
             # Check for return statement
             if self._match(TokenType.RETURN):
                 statements.append(self._parse_return())
@@ -515,7 +530,7 @@ class SmalltalkParser(BaseParser):
             if expr:
                 statements.append(expr)
 
-            # Handle statement separator
+            # Handle statement separator (period can follow comments)
             if self._match(TokenType.PERIOD):
                 self._advance()
             elif not self._match(TokenType.EOF, TokenType.RBRACKET):
@@ -538,6 +553,10 @@ class SmalltalkParser(BaseParser):
         Also handles binarySend | unarySend | primary.
         """
         if not self._current_token() or self._match(TokenType.EOF):
+            return None
+
+        # Skip comments at expression level (they should not be statements)
+        if self._match(TokenType.COMMENT, TokenType.PRAGMA):
             return None
 
         # Try assignment
@@ -602,8 +621,29 @@ class SmalltalkParser(BaseParser):
             # Parse additional cascade messages
             while self._match(TokenType.CASCADE):
                 self._advance()  # consume ;
-                selector, args = self._parse_message()
-                messages.append((selector, args))
+                # Parse message at the appropriate precedence level
+                if self._match(TokenType.KEYWORD):
+                    # Keyword message
+                    selector_parts = []
+                    arguments = []
+                    while self._match(TokenType.KEYWORD):
+                        keyword = self._advance().value
+                        selector_parts.append(keyword)
+                        arg = self._parse_binary_send()
+                        arguments.append(arg)
+                    selector = "".join(selector_parts)
+                    messages.append((selector, arguments))
+                elif self._match(TokenType.BINARY_SELECTOR):
+                    # Binary message
+                    selector = self._advance().value
+                    arg = self._parse_unary_send()
+                    messages.append((selector, [arg]))
+                elif self._match(TokenType.IDENTIFIER):
+                    # Unary message
+                    selector = self._advance().value
+                    messages.append((selector, []))
+                else:
+                    raise SyntaxError("Expected message selector after ';'")
 
             return Cascade(receiver, messages)
 
@@ -622,6 +662,8 @@ class SmalltalkParser(BaseParser):
                 keyword = self._advance().value
                 selector_parts.append(keyword)
                 arg = self._parse_binary_send()
+                if arg is None:
+                    raise SyntaxError(f"Expected argument after keyword {keyword}")
                 arguments.append(arg)
 
             selector = "".join(selector_parts)
@@ -705,7 +747,11 @@ class SmalltalkParser(BaseParser):
 
         elif self._match(TokenType.LPAREN):
             self._advance()  # consume (
-            expr = self._parse_expression()
+            # Allow full expression parsing including assignment and cascade
+            if self._is_assignment():
+                expr = self._parse_assignment()
+            else:
+                expr = self._parse_cascade()
             self._consume(TokenType.RPAREN)
             if expr is None:
                 raise SyntaxError("Expected expression inside parentheses")
@@ -791,9 +837,12 @@ class SmalltalkParser(BaseParser):
         while not self._match(TokenType.RPAREN, TokenType.EOF):
             if self._match(TokenType.NUMBER):
                 value = self._advance().value
-                elements.append(float(value) if "." in value else int(value))
+                elements.append(self._parse_number_literal(value))
             elif self._match(TokenType.STRING):
                 value = self._advance().value[1:-1].replace("''", "'")
+                elements.append(value)
+            elif self._match(TokenType.CHARACTER):
+                value = self._advance().value[1]  # Remove $
                 elements.append(value)
             elif self._match(TokenType.SYMBOL):
                 value = self._advance().value[1:]
@@ -866,17 +915,21 @@ class SmalltalkParser(BaseParser):
         Supports:
         - Regular integers: 123
         - Regular floats: 123.45, 1.23e4
-        - Radix integers: 16rFF, 2r1010
+        - Radix integers: 16rFF, 2r1010, -16r100
         - Scaled decimals: 3.14s2
         """
-        # Radix integer: 16rFF, 2r1010
+        # Radix integer: 16rFF, 2r1010, -16r100
         if "r" in value:
             parts = value.split("r")
             if len(parts) == 2:
-                base = int(parts[0])
+                base_part = parts[0]
                 digits = parts[1]
+                # Handle negative sign
+                is_negative = base_part.startswith("-")
+                base = int(base_part[1:]) if is_negative else int(base_part)
                 try:
-                    return int(digits, base)
+                    result = int(digits, base)
+                    return -result if is_negative else result
                 except ValueError as e:
                     raise SyntaxError(f"Invalid radix number: {value}") from e
 
