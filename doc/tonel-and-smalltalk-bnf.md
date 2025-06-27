@@ -28,11 +28,11 @@ formally defines the syntactic structure of the Tonel format.
 ## Class Definition Section
 
 ```bnf
-<!-- Definition of a class, trait, or extension -->
+<!-- Definition of a class, trait, extension, or package -->
 <classDefinition> ::= <type> <whitespace> <stonMap>
 
 <!-- Definition type -->
-<type> ::= "Class" | "Trait" | "Extension"
+<type> ::= "Class" | "Trait" | "Extension" | "Package"
 ```
 
 ## Method Definition Section
