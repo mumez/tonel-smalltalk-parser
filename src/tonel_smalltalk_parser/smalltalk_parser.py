@@ -26,6 +26,7 @@ class TokenType(Enum):
     FALSE = "FALSE"
     SELF = "SELF"
     SUPER = "SUPER"
+    THISCONTEXT = "THISCONTEXT"
 
     # Identifiers and selectors
     IDENTIFIER = "IDENTIFIER"
@@ -40,6 +41,7 @@ class TokenType(Enum):
     LBRACE = "LBRACE"  # {
     RBRACE = "RBRACE"  # }
     LPARRAY = "LPARRAY"  # #(
+    LBARRAY = "LBARRAY"  # #[
 
     # Operators
     ASSIGN = "ASSIGN"  # :=
@@ -149,6 +151,13 @@ class DynamicArray(SmalltalkExpression):
 
 
 @dataclass
+class ByteArray(SmalltalkExpression):
+    """Byte array literal."""
+
+    values: list[int]
+
+
+@dataclass
 class SmalltalkSequence(SmalltalkExpression):
     """Sequence of Smalltalk statements."""
 
@@ -170,12 +179,16 @@ class SmalltalkLexer:
             (TokenType.STRING, r"'([^']|'')*'"),
             (TokenType.CHARACTER, r"\$\S"),
             (TokenType.LPARRAY, r"#\("),
+            (TokenType.LBARRAY, r"#\["),
             (
                 TokenType.SYMBOL,
                 r"#[a-zA-Z][a-zA-Z0-9_]*(?:[a-zA-Z0-9_]*:)*|"
                 r"#\'([^\']|\'\')*\'|#[\\+*\/=><@%~&\-?,]+",
             ),
-            (TokenType.NUMBER, r"[+-]?\d+(\.\d+)?([eE][+-]?\d+)?"),
+            (
+                TokenType.NUMBER,
+                r"[+-]?\d+r[0-9A-Za-z]+|[+-]?\d+\.\d+s\d*|[+-]?\d+(\.\d+)?([eE][+-]?\d+)?",
+            ),
             (TokenType.ASSIGN, r":="),
             (TokenType.RETURN, r"\^"),
             (TokenType.CASCADE, r";"),
@@ -215,6 +228,7 @@ class SmalltalkLexer:
             "false": TokenType.FALSE,
             "self": TokenType.SELF,
             "super": TokenType.SUPER,
+            "thisContext": TokenType.THISCONTEXT,
         }
 
     def tokenize(self, text: str) -> list[Token]:
@@ -388,6 +402,7 @@ class SmalltalkLexer:
             TokenType.NIL,
             TokenType.SELF,
             TokenType.SUPER,
+            TokenType.THISCONTEXT,
         ]
 
 
@@ -468,8 +483,17 @@ class SmalltalkParser(BaseParser):
 
         variables = []
         while not self._match(TokenType.PIPE, TokenType.EOF):
-            if self._match(TokenType.IDENTIFIER):
-                variables.append(self._advance().value)
+            if self._match(TokenType.IDENTIFIER) or self._match(
+                TokenType.NIL,
+                TokenType.TRUE,
+                TokenType.FALSE,
+                TokenType.SELF,
+                TokenType.SUPER,
+                TokenType.THISCONTEXT,
+            ):
+                var_name = self._advance().value
+                self._validate_bindable_identifier(var_name)
+                variables.append(var_name)
             else:
                 break
 
@@ -526,13 +550,35 @@ class SmalltalkParser(BaseParser):
 
     def _is_assignment(self) -> bool:
         """Check if current position is an assignment."""
+        # Check for identifier or reserved word followed by :=
         return (
-            self._match(TokenType.IDENTIFIER) and self._peek().type == TokenType.ASSIGN
-        )
+            self._match(TokenType.IDENTIFIER)
+            or self._match(
+                TokenType.NIL,
+                TokenType.TRUE,
+                TokenType.FALSE,
+                TokenType.SELF,
+                TokenType.SUPER,
+                TokenType.THISCONTEXT,
+            )
+        ) and self._peek().type == TokenType.ASSIGN
 
     def _parse_assignment(self) -> Assignment:
         """Parse assignment: variable := expression."""
-        variable = self._consume(TokenType.IDENTIFIER).value
+        # Get variable name from either identifier or reserved word
+        if self._match(TokenType.IDENTIFIER) or self._match(
+            TokenType.NIL,
+            TokenType.TRUE,
+            TokenType.FALSE,
+            TokenType.SELF,
+            TokenType.SUPER,
+            TokenType.THISCONTEXT,
+        ):
+            variable = self._advance().value
+        else:
+            raise SyntaxError("Expected variable name in assignment")
+
+        self._validate_bindable_identifier(variable)
         self._consume(TokenType.ASSIGN)
         value = self._parse_expression()
         if value is None:
@@ -622,6 +668,7 @@ class SmalltalkParser(BaseParser):
             TokenType.FALSE,
             TokenType.SELF,
             TokenType.SUPER,
+            TokenType.THISCONTEXT,
         ):
             token = self._advance()
             if token.type == TokenType.NIL:
@@ -630,15 +677,12 @@ class SmalltalkParser(BaseParser):
                 return Literal(True)
             elif token.type == TokenType.FALSE:
                 return Literal(False)
-            else:  # SELF, SUPER
+            else:  # SELF, SUPER, THISCONTEXT
                 return Variable(token.value)
 
         elif self._match(TokenType.NUMBER):
             value = self._advance().value
-            if "." in value or "e" in value.lower():
-                return Literal(float(value))
-            else:
-                return Literal(int(value))
+            return Literal(self._parse_number_literal(value))
 
         elif self._match(TokenType.STRING):
             value = self._advance().value[1:-1]  # Remove quotes
@@ -672,6 +716,9 @@ class SmalltalkParser(BaseParser):
 
         elif self._match(TokenType.LPARRAY):
             return self._parse_literal_array()
+
+        elif self._match(TokenType.LBARRAY):
+            return self._parse_byte_array()
 
         else:
             # Unexpected token
@@ -767,6 +814,28 @@ class SmalltalkParser(BaseParser):
         self._consume(TokenType.RPAREN)
         return LiteralArray(elements)
 
+    def _parse_byte_array(self) -> ByteArray:
+        """Parse byte array: #[ integers ]."""
+        self._consume(TokenType.LBARRAY)
+
+        values = []
+        while not self._match(TokenType.RBRACKET, TokenType.EOF):
+            if self._match(TokenType.NUMBER):
+                value_str = self._advance().value
+                try:
+                    value = int(value_str)
+                    if 0 <= value <= 255:
+                        values.append(value)
+                    else:
+                        raise SyntaxError(f"Byte value must be 0-255, got {value}")
+                except ValueError as e:
+                    raise SyntaxError(f"Invalid byte value: {value_str}") from e
+            else:
+                break
+
+        self._consume(TokenType.RBRACKET)
+        return ByteArray(values)
+
     def _parse_message(self) -> tuple[str, list[SmalltalkExpression]]:
         """Parse message (selector + arguments) for cascade."""
         if self._match(TokenType.IDENTIFIER):
@@ -790,6 +859,62 @@ class SmalltalkParser(BaseParser):
             return selector, arguments
         else:
             raise SyntaxError("Expected message selector")
+
+    def _parse_number_literal(self, value: str) -> int | float:
+        """Parse number literal with support for radix and scaled decimals.
+
+        Supports:
+        - Regular integers: 123
+        - Regular floats: 123.45, 1.23e4
+        - Radix integers: 16rFF, 2r1010
+        - Scaled decimals: 3.14s2
+        """
+        # Radix integer: 16rFF, 2r1010
+        if "r" in value:
+            parts = value.split("r")
+            if len(parts) == 2:
+                base = int(parts[0])
+                digits = parts[1]
+                try:
+                    return int(digits, base)
+                except ValueError as e:
+                    raise SyntaxError(f"Invalid radix number: {value}") from e
+
+        # Scaled decimal: 3.14s2
+        if "s" in value:
+            parts = value.split("s")
+            if len(parts) == 2:
+                number_part = parts[0]
+                # scale_part = parts[1] if parts[1] else "0"  # Future enhancement
+                try:
+                    # For now, treat as float - could be enhanced for precise decimal
+                    return float(number_part)
+                except ValueError as e:
+                    raise SyntaxError(f"Invalid scaled decimal: {value}") from e
+
+        # Regular float with exponential notation or decimal point
+        if "." in value or "e" in value.lower():
+            try:
+                return float(value)
+            except ValueError as e:
+                raise SyntaxError(f"Invalid float: {value}") from e
+
+        # Regular integer
+        try:
+            return int(value)
+        except ValueError as e:
+            raise SyntaxError(f"Invalid integer: {value}") from e
+
+    def _is_reserved_identifier(self, name: str) -> bool:
+        """Check if identifier is reserved and cannot be used as variable name."""
+        return name in ["nil", "true", "false", "self", "super", "thisContext"]
+
+    def _validate_bindable_identifier(self, name: str) -> None:
+        """Validate that identifier can be used as variable name."""
+        if self._is_reserved_identifier(name):
+            raise SyntaxError(
+                f"Cannot use reserved identifier '{name}' as variable name"
+            )
 
 
 def parse_smalltalk_method_body(method_body: str) -> SmalltalkSequence:

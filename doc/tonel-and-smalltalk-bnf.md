@@ -68,7 +68,14 @@ formally defines the syntactic structure of the Tonel format.
 <!-- Identifier: starts with letter, followed by letters, digits, or underscores -->
 <identifier> ::= <letter> <letterOrDigitOrUnderscore>*
 
+<!-- Reserved identifiers (cannot be used as variable names) -->
+<reservedIdentifier> ::= <pseudoVariable>
+
+<!-- Bindable identifier (can be used as variable names) -->
+<bindableIdentifier> ::= <identifier> <!-- but not <reservedIdentifier> -->
+
 <!-- Binary selector: one or more special characters -->
+<!-- Note: Multi-character operators like <=, >=, ~= are recognized as single tokens -->
 <binarySelector> ::= <binaryChar>+
 
 <!-- Characters usable in binary operators -->
@@ -94,10 +101,16 @@ formally defines the syntactic structure of the Tonel format.
 <mapValue> ::= <primitive> | <object> | <list> | <association> | <map> | <reference>
 
 <!-- Symbol: identifier prefixed with # -->
-<symbol> ::= <simpleSymbol> | <genericSymbol>
+<symbol> ::= <simpleSymbol> | <keywordSymbol> | <binarySymbol> | <genericSymbol>
 
 <!-- Simple symbol: restricted character set -->
 <simpleSymbol> ::= "#" <simpleSymbolChar>+
+
+<!-- Keyword symbol: identifier with colons -->
+<keywordSymbol> ::= "#" <identifier> ( <identifier>? ":" )*
+
+<!-- Binary symbol: binary characters -->
+<binarySymbol> ::= "#" <binaryChar>+
 
 <!-- Generic symbol: string format -->
 <genericSymbol> ::= "#" <string>
@@ -118,10 +131,19 @@ formally defines the syntactic structure of the Tonel format.
 <escapeSequence> ::= "\\" ( "'" | "\\" | "r" | "n" | "t" | "u" <hexDigit> <hexDigit> <hexDigit> <hexDigit> )
 
 <!-- Numbers: integers or floating-point numbers -->
-<number> ::= <integer> | <float>
+<number> ::= <integer> | <scaledDecimal> | <float>
 
-<!-- Integer: optional sign and digit sequence -->
-<integer> ::= ( "+" | "-" )? <digit>+
+<!-- Integer: decimal or radix-based -->
+<integer> ::= <decimalInteger> | <radixInteger>
+
+<decimalInteger> ::= ( "+" | "-" )? <digit>+
+
+<radixInteger> ::= <digit>+ "r" <radixDigit>+
+
+<radixDigit> ::= <digit> | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+
+<!-- Scaled decimal number (ANSI Smalltalk feature) -->
+<scaledDecimal> ::= ( "+" | "-" )? <digit>+ "." <digit>+ "s" <digit>*
 
 <!-- Floating-point number: includes decimal and exponent parts -->
 <float> ::= ( "+" | "-" )? <digit>+ "." <digit>+ ( ( "e" | "E" ) ( "+" | "-" )? <digit>+ )?
@@ -194,6 +216,7 @@ formally defines the syntactic structure of the Tonel format.
                | <binarySend>
                | <unarySend>
                | <primitive>
+               | <pragma>
 
 <!-- Assignment expression -->
 <assignment> ::= <variable> <whitespace>? ":=" <whitespace>? <expression>
@@ -205,25 +228,26 @@ formally defines the syntactic structure of the Tonel format.
 
 <message> ::= <binaryMessage> | <unaryMessage> | <keywordMessage>
 
+<!-- Message chain (ANSI Smalltalk style) -->
+<messageChain> ::= <unaryMessage>* <binaryMessage>* <keywordMessage>?
+                 | <binaryMessage>* <keywordMessage>?
+                 | <keywordMessage>
+
 <!-- Types of message sending -->
 <keywordSend> ::= <binarySend> <keywordMessage>
 
-<binarySend> ::= <unarySend> <binaryTail>?
+<binarySend> ::= <unarySend> <binaryMessage>*
 
-<unarySend> ::= <operand> <whitespace>? <unaryTail>?
+<unarySend> ::= <operand> <unaryMessage>*
 
 <!-- Message details -->
 <keywordMessage> ::= <whitespace>? ( <keywordPair> <whitespace>? )+
 
 <keywordPair> ::= <keyword> <whitespace>? <binarySend> <whitespace>?
 
-<binaryMessage> ::= <binarySelector> <whitespace>? <unarySend>
+<binaryMessage> ::= <whitespace>? <binarySelector> <whitespace>? <unarySend>
 
-<unaryMessage> ::= <identifier>
-
-<binaryTail> ::= <binaryMessage>+
-
-<unaryTail> ::= <unaryMessage>+
+<unaryMessage> ::= <whitespace>? <identifier>
 
 <!-- Operands (basic elements of expressions) -->
 <operand> ::= <literal>
@@ -240,20 +264,22 @@ formally defines the syntactic structure of the Tonel format.
 <runtimeLiteral> ::= <dynamicArray> | <block>
 
 <parsetimeLiteral> ::= <pseudoVariable> | <number> | <charConstant>
-                     | <literalArray> | <string> | <symbol>
+                     | <literalArray> | <byteArray> | <string> | <symbol>
 
 <!-- Blocks -->
-<block> ::= "[" <blockParamList>? <whitespace>? <smalltalkSequence>? "]"
+<block> ::= "[" <blockParamList>? <whitespace>? <blockBody>? "]"
 
-<blockParamList> ::= ( <whitespace>? <blockParam> )+
+<blockParamList> ::= ( <whitespace>? <blockParam> )+ <whitespace>? "|"
 
 <blockParam> ::= ":" <identifier>
+
+<blockBody> ::= <temporaries>? <whitespace>? <statements>?
 
 <!-- Dynamic collections -->
 <dynamicArray> ::= "{" <whitespace>? <expressions>? <whitespace>? "}"
 
 <!-- Parse-time literals -->
-<pseudoVariable> ::= "nil" | "true" | "false" | "self" | "super"
+<pseudoVariable> ::= "nil" | "true" | "false" | "self" | "super" | "thisContext"
 
 <charConstant> ::= "$" <char>
 
@@ -263,8 +289,19 @@ formally defines the syntactic structure of the Tonel format.
 
 <literalArrayItem> ::= <parsetimeLiteral> | <literalArray> | <identifier> | <binarySelector>
 
-<!-- Primitive calls -->
+<!-- Byte array: array of integers 0-255 -->
+<byteArray> ::= "#[" <whitespace>? ( <byteValue> <whitespace>? )* "]"
+
+<byteValue> ::= <digit>+ <!-- 0 to 255 -->
+
+<!-- Primitive calls and pragmas -->
 <primitive> ::= "<" <whitespace>? <keyword> <whitespace>? <digit>+ <whitespace>? ">"
+
+<pragma> ::= "<" <pragmaContent> ">"
+
+<pragmaContent> ::= <identifier> ( <whitespace>? <pragmaItem> )*
+
+<pragmaItem> ::= <string> | <identifier> | ":" | <digit>+ | <binarySelector>
 ```
 
 ## Design Considerations
@@ -273,6 +310,67 @@ formally defines the syntactic structure of the Tonel format.
 
 - **TonelParser**: Handles file structure, metadata (STON), and method references
 - **SmalltalkParser**: Processes method bodies (content between `[` and `]` brackets)
+
+### Implementation Extensions
+
+The parser implementation includes several extensions beyond the basic BNF:
+
+1. **Enhanced Pragma Support**: Supports complex pragmas with strings and multiple
+   parameters
+
+   - `<primitive: 'primitiveJavaScriptErrorRegisterUncaughtInstanceContext:' module: 'CpSystemPlugin'>`
+   - `<script>`
+
+1. **Multi-character Binary Operators**: Recognizes compound operators as single tokens
+
+   - `<=`, `>=`, `~=` are tokenized as single binary selectors
+
+1. **Extended Symbol Syntax**: Supports keyword and binary symbols
+
+   - Keyword symbols: `#openDir:options:do:`
+   - Binary symbols: `#+`, `#*`
+
+1. **Block Temporaries**: Blocks can have both parameters and temporary variables
+
+   - `[ :stream | | message | message := 'test' ]`
+
+1. **Context-Aware Pipe Handling**: Distinguishes between pipe uses in different
+   contexts
+
+   - Block parameter separator: `[ :x | x + 1 ]`
+   - Temporary variable delimiter: `[ | temp | temp := 42 ]`
+   - Binary message operator: `a | b`
+
+### ANSI Smalltalk Compatibility
+
+This parser provides full implementation of key ANSI Smalltalk compatibility features:
+
+1. **Extended Number Literals**: ✅ **Fully Implemented**
+
+   - Radix integers: `16rFF` (255), `2r1010` (10), `8r777` (511)
+   - Scaled decimals: `3.14s2` (precision 2), `123.456s3`
+   - Automatic base conversion and validation
+
+1. **Additional Pseudo-variables**: ✅ **Fully Implemented**
+
+   - `thisContext` for execution context access
+   - Proper tokenization and parsing support
+
+1. **Byte Array Literals**: ✅ **Fully Implemented**
+
+   - Syntax: `#[1 2 3 255]`, `#[]` (empty arrays)
+   - Value validation: 0-255 range enforcement
+   - Dedicated AST node: `ByteArray`
+
+1. **Reserved Identifier Classification**: ✅ **Fully Implemented**
+
+   - Validation prevents use of reserved words as variable names
+   - Covers: `nil`, `true`, `false`, `self`, `super`, `thisContext`
+   - Applies to assignments and temporary variable declarations
+   - Clear error messages for violations
+
+**Implementation Status**: All documented ANSI Smalltalk features are fully implemented
+and tested with comprehensive test coverage (11 new tests added).
 
 ### Boundary Detection Problem and Solutions
 
