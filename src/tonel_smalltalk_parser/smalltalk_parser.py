@@ -51,6 +51,7 @@ class TokenType(Enum):
 
     # Special
     COMMENT = "COMMENT"
+    PRAGMA = "PRAGMA"
     WHITESPACE = "WHITESPACE"
     EOF = "EOF"
 
@@ -162,6 +163,7 @@ class SmalltalkLexer:
         # Token patterns (order matters)
         self.token_patterns = [
             (TokenType.COMMENT, r'"([^"]|"")*"'),
+            (TokenType.PRAGMA, r"<[^>]*>"),  # Pragma like <script>, <primitive: 123>
             (TokenType.STRING, r"'([^']|'')*'"),
             (TokenType.CHARACTER, r"\$\S"),
             (TokenType.LPARRAY, r"#\("),
@@ -181,7 +183,10 @@ class SmalltalkLexer:
             (TokenType.RBRACE, r"\}"),
             (TokenType.KEYWORD, r"[a-zA-Z][a-zA-Z0-9_]*:"),
             (TokenType.IDENTIFIER, r"[a-zA-Z][a-zA-Z0-9_]*"),
-            (TokenType.BINARY_SELECTOR, r"[\\+*\/=><@%~&\-?]+"),  # Remove | from here
+            (
+                TokenType.BINARY_SELECTOR,
+                r"[\\+*\/=><@%~&\-?,]+",
+            ),  # Add comma for binary selector
             (TokenType.WHITESPACE, r"\s+"),
         ]
 
@@ -323,6 +328,7 @@ class SmalltalkParser(BaseParser):
         """Parse Smalltalk method body and return AST."""
         self.tokens = self.lexer.tokenize(method_body)
         self.current = 0
+        self._skip_comments()  # Skip any initial comments
         return self._parse_sequence()
 
     def _current_token(self) -> Token:
@@ -343,7 +349,16 @@ class SmalltalkParser(BaseParser):
         token = self._current_token()
         if self.current < len(self.tokens) - 1:
             self.current += 1
+        self._skip_comments()
         return token
+
+    def _skip_comments(self) -> None:
+        """Skip over comment and pragma tokens."""
+        while self.current < len(self.tokens) - 1 and self._current_token().type in (
+            TokenType.COMMENT,
+            TokenType.PRAGMA,
+        ):
+            self.current += 1
 
     def _match(self, *token_types: TokenType) -> bool:
         """Check if current token matches any of the given types."""
@@ -605,8 +620,8 @@ class SmalltalkParser(BaseParser):
         # Parse block body
         body = None
         if not self._match(TokenType.RBRACKET, TokenType.EOF):
-            statements = self._parse_statements()
-            body = SmalltalkSequence(None, statements)
+            # Parse the block body as a sequence (like a method body)
+            body = self._parse_sequence()
 
         if self._match(TokenType.EOF):
             raise SyntaxError("Unclosed block - missing ']'")

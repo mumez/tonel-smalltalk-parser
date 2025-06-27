@@ -46,7 +46,7 @@ class TonelParser(BaseParser):
         # Patterns for parsing
         self.comment_pattern = re.compile(r'^"([^"]*)"', re.MULTILINE | re.DOTALL)
         self.class_def_pattern = re.compile(
-            r"(Class|Trait|Extension)\s*\{([^}]*)\}", re.MULTILINE | re.DOTALL
+            r"(Class|Trait|Extension|Package)\s*\{([^}]*)\}", re.MULTILINE | re.DOTALL
         )
 
         # Method header pattern (without body)
