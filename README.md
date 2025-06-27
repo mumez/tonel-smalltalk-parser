@@ -179,6 +179,44 @@ method = result.methods[0]
 print(f"Method body contains: {len(method.body.split())} tokens")
 ```
 
+## Command Line Interface
+
+The package provides a command-line tool for validating Tonel files:
+
+```bash
+# Install the package to get the CLI command
+pip install tonel-smalltalk-parser
+
+# Validate a Tonel file (checks structure + Smalltalk syntax)
+validate-tonel path/to/file.st
+
+# Validate only Tonel structure (skip Smalltalk method body validation)
+validate-tonel --without-method-body path/to/file.st
+
+# Show help
+validate-tonel --help
+
+# Show version
+validate-tonel --version
+```
+
+### CLI Examples
+
+```bash
+# Validate a complete Tonel file
+validate-tonel Counter.st
+# Output: ✓ 'Counter.st' is valid
+
+# Quick structure-only validation (faster)
+validate-tonel --without-method-body Counter.st
+# Output: ✓ 'Counter.st' is valid
+
+# Validate invalid file
+validate-tonel InvalidFile.st
+# Output: ✗ 'InvalidFile.st' contains validation errors
+# Exit code: 1
+```
+
 ## Development
 
 ### Requirements

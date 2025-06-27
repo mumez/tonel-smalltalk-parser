@@ -24,6 +24,9 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = []
 
+[project.scripts]
+validate-tonel = "tonel_smalltalk_parser.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.1",
