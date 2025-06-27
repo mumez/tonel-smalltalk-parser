@@ -237,7 +237,7 @@ formally defines the syntactic structure of the Tonel format.
 <!-- Literals -->
 <literal> ::= <runtimeLiteral> | <parsetimeLiteral>
 
-<runtimeLiteral> ::= <dynamicDictionary> | <dynamicArray> | <block>
+<runtimeLiteral> ::= <dynamicArray> | <block>
 
 <parsetimeLiteral> ::= <pseudoVariable> | <number> | <charConstant>
                      | <literalArray> | <string> | <symbol>
@@ -251,8 +251,6 @@ formally defines the syntactic structure of the Tonel format.
 
 <!-- Dynamic collections -->
 <dynamicArray> ::= "{" <whitespace>? <expressions>? <whitespace>? "}"
-
-<dynamicDictionary> ::= "{" <whitespace>? <expressions>? <whitespace>? "}"
 
 <!-- Parse-time literals -->
 <pseudoVariable> ::= "nil" | "true" | "false" | "self" | "super"
