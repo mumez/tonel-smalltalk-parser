@@ -187,7 +187,7 @@ class SmalltalkLexer:
             ),
             (
                 TokenType.NUMBER,
-                r"[+-]?\d+r[0-9A-Za-z]+|[+-]?\d+\.\d+s\d*|[+-]?\d+(\.\d+)?([eE][+-]?\d+)?",
+                r"-?\d+r[0-9A-Za-z]+|-?\d+\.\d+s\d*|-?\d+(\.\d+)?([eE][+-]?\d+)?",
             ),
             (TokenType.ASSIGN, r":="),
             (TokenType.RETURN, r"\^"),
@@ -267,6 +267,26 @@ class SmalltalkLexer:
                             tokens, value
                         ):
                             token_type = TokenType.BINARY_SELECTOR
+
+                        # Handle signed numbers: only - (minus) part of a number
+                        if token_type == TokenType.BINARY_SELECTOR and value == "-":
+                            # Look ahead to see if this could be a signed number
+                            remaining_text = text[match.end() :]
+                            number_pattern = r"\d+(\.\d+)?([eE][+-]?\d+)?"
+                            number_match = re.match(number_pattern, remaining_text)
+                            if number_match and self._is_signed_number_context(tokens):
+                                # Combine the sign with the number
+                                full_number = value + number_match.group(0)
+                                token_type = TokenType.NUMBER
+                                value = full_number
+                                # Update match end position
+                                new_pos = match.end() + number_match.end()
+                                pos = new_pos
+                                tokens.append(
+                                    Token(token_type, value, token_line, token_col)
+                                )
+                                matched = True
+                                break
 
                         tokens.append(Token(token_type, value, token_line, token_col))
 
@@ -406,6 +426,59 @@ class SmalltalkLexer:
             TokenType.SELF,
             TokenType.SUPER,
             TokenType.THISCONTEXT,
+        ]
+
+    def _is_signed_number_context(self, tokens: list[Token]) -> bool:
+        """Determine if - (minus) should be treated as part of a signed number.
+
+        Returns True if the - appears in a context where it should be
+        part of a number literal rather than a binary operator.
+        Note: + is never treated as part of a number in Smalltalk.
+        """
+        if not tokens:
+            return True  # Start of input - can be signed number
+
+        last_token = tokens[-1]
+
+        # First check if this could be a binary operator
+        # If the last token can serve as a receiver for binary messages,
+        # then - is likely a binary operator
+        if last_token.type in [
+            TokenType.IDENTIFIER,
+            TokenType.NUMBER,
+            TokenType.STRING,
+            TokenType.SYMBOL,
+            TokenType.CHARACTER,
+            TokenType.RPAREN,
+            TokenType.RBRACKET,
+            TokenType.TRUE,
+            TokenType.FALSE,
+            TokenType.NIL,
+            TokenType.SELF,
+            TokenType.SUPER,
+            TokenType.THISCONTEXT,
+        ]:
+            return False  # This is likely a binary operator
+
+        # Contexts where - should be treated as signed number:
+        # 1. After operators that expect expressions
+        # 2. After opening delimiters
+        # 3. After assignment
+        # 4. After keywords (in keyword messages)
+        return last_token.type in [
+            TokenType.ASSIGN,  # x := -5
+            TokenType.RETURN,  # ^ -5
+            TokenType.LPAREN,  # (-5)
+            TokenType.LBRACKET,  # [-5]
+            TokenType.LBRACE,  # {-5}
+            TokenType.LPARRAY,  # #(-5)
+            TokenType.LBARRAY,  # #[-5]
+            TokenType.BINARY_SELECTOR,  # x + -5 (after binary operator)
+            TokenType.KEYWORD,  # size: -5 (after keyword)
+            TokenType.CASCADE,  # obj msg; other: -5
+            TokenType.PERIOD,  # stmt. -5
+            TokenType.COLON,  # [:x | -5] (block parameter)
+            TokenType.PIPE,  # | temp | -5
         ]
 
 
