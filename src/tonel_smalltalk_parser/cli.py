@@ -37,17 +37,24 @@ def validate_tonel_file(file_path: str, without_method_body: bool = False) -> bo
     try:
         if without_method_body:
             parser = TonelParser()
-            result = parser.validate_from_file(str(path))
+            success, error_info = parser.validate_from_file(str(path))
         else:
             parser = TonelFullParser()
-            result = parser.validate_from_file(str(path))
+            success, error_info = parser.validate_from_file(str(path))
 
-        if result:
+        if success:
             print(f"✓ '{file_path}' is valid")
         else:
             print(f"✗ '{file_path}' contains validation errors")
+            if error_info:
+                print(
+                    f"Error at line {error_info['line']}: {error_info['reason']}",
+                    file=sys.stderr,
+                )
+                if error_info["error_text"]:
+                    print(f">>> {error_info['error_text']}", file=sys.stderr)
 
-        return result
+        return success
 
     except Exception as e:
         print(f"Error validating '{file_path}': {e}", file=sys.stderr)

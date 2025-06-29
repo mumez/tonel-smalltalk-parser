@@ -327,23 +327,23 @@ class TestTonelParserValidation:
 Counter >> increment [
     count := count + 1
 ]"""
-        assert self.parser.validate(valid_content) is True
+        assert self.parser.validate(valid_content)[0] is True
 
     def test_validate_invalid_tonel_content(self):
         """Test validate returns False for invalid Tonel content."""
         invalid_content = "This is not valid Tonel content"
-        assert self.parser.validate(invalid_content) is False
+        assert self.parser.validate(invalid_content)[0] is False
 
     def test_validate_empty_content(self):
         """Test validate returns False for empty content."""
-        assert self.parser.validate("") is False
+        assert self.parser.validate("")[0] is False
 
     def test_validate_malformed_class_definition(self):
         """Test validate returns False for malformed class definition."""
         malformed_content = """Class {
     #name : #Counter
     # missing closing brace"""
-        assert self.parser.validate(malformed_content) is False
+        assert self.parser.validate(malformed_content)[0] is False
 
     def test_validate_class_only(self):
         """Test validate returns True for class definition only."""
@@ -351,7 +351,7 @@ Counter >> increment [
     #name : #Counter,
     #superclass : #Object
 }"""
-        assert self.parser.validate(class_only) is True
+        assert self.parser.validate(class_only)[0] is True
 
     def test_validate_with_comment(self):
         """Test validate returns True for content with comment."""
@@ -360,7 +360,7 @@ Class {
     #name : #TestClass,
     #superclass : #Object
 }"""
-        assert self.parser.validate(with_comment) is True
+        assert self.parser.validate(with_comment)[0] is True
 
     def test_validate_trait_definition(self):
         """Test validate returns True for trait definition."""
@@ -368,7 +368,7 @@ Class {
     #name : #TTestTrait,
     #category : #'Test-Traits'
 }"""
-        assert self.parser.validate(trait_content) is True
+        assert self.parser.validate(trait_content)[0] is True
 
     def test_validate_extension_definition(self):
         """Test validate returns True for extension definition."""
@@ -376,7 +376,7 @@ Class {
     #name : #Object,
     #category : #'*Test-Extensions'
 }"""
-        assert self.parser.validate(extension_content) is True
+        assert self.parser.validate(extension_content)[0] is True
 
     def test_validate_from_file_valid(self):
         """Test validate_from_file returns True for valid file."""
@@ -388,7 +388,7 @@ Class {
             f.write(valid_content)
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is True
+                assert self.parser.validate_from_file(f.name)[0] is True
             finally:
                 os.unlink(f.name)
 
@@ -399,13 +399,13 @@ Class {
             f.write(invalid_content)
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is False
+                assert self.parser.validate_from_file(f.name)[0] is False
             finally:
                 os.unlink(f.name)
 
     def test_validate_from_file_nonexistent(self):
         """Test validate_from_file returns False for nonexistent file."""
-        assert self.parser.validate_from_file("/nonexistent/file.st") is False
+        assert self.parser.validate_from_file("/nonexistent/file.st")[0] is False
 
     def test_validate_method_with_syntax_error(self):
         """Test validate returns True even if method body has syntax errors."""
@@ -419,7 +419,7 @@ TestClass >> badMethod [
     this is not valid smalltalk syntax
 ]"""
         # TonelParser should return True because it only validates Tonel structure
-        assert self.parser.validate(content_with_bad_method) is True
+        assert self.parser.validate(content_with_bad_method)[0] is True
 
 
 if __name__ == "__main__":

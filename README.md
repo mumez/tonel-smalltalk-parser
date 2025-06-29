@@ -88,8 +88,10 @@ print(f"Methods: {len(result.methods)}")
 
 # Full validation (Tonel + Smalltalk syntax)
 full_parser = TonelFullParser()
-is_valid = full_parser.validate(tonel_content)
+is_valid, error_info = full_parser.validate(tonel_content)
 print(f"Fully valid: {is_valid}")
+if error_info:
+    print(f"Validation error: {error_info['reason']} at line {error_info['line']}")
 ```
 
 ### Validation
@@ -101,22 +103,27 @@ from tonel_smalltalk_parser import TonelParser, SmalltalkParser, TonelFullParser
 
 # Validate Tonel structure only
 tonel_parser = TonelParser()
-is_valid_tonel = tonel_parser.validate(tonel_content)
+is_valid_tonel, error_info = tonel_parser.validate(tonel_content)
 print(f"Valid Tonel structure: {is_valid_tonel}")
+if error_info:
+    print(f"Error at line {error_info['line']}: {error_info['reason']}")
 
 # Validate from file
-is_valid_file = tonel_parser.validate_from_file("example.st")
+is_valid_file, error_info = tonel_parser.validate_from_file("example.st")
 
 # Validate Smalltalk method body
 smalltalk_parser = SmalltalkParser()
 method_body = "| x | x := 42. ^ x + 1"
-is_valid_smalltalk = smalltalk_parser.validate(method_body)
+is_valid_smalltalk, error_info = smalltalk_parser.validate(method_body)
 print(f"Valid Smalltalk: {is_valid_smalltalk}")
 
 # Validate both Tonel structure AND Smalltalk method bodies
 full_parser = TonelFullParser()
-is_fully_valid = full_parser.validate(tonel_content)
+is_fully_valid, error_info = full_parser.validate(tonel_content)
 print(f"Valid Tonel + Smalltalk: {is_fully_valid}")
+if error_info:
+    print(f"Validation failed: {error_info['reason']}")
+    print(f"Problem at line {error_info['line']}: {error_info['error_text']}")
 ```
 
 ### Complete Validation with TonelFullParser
@@ -133,11 +140,11 @@ parser = TonelFullParser()
 # 1. Tonel file structure and metadata
 # 2. Each method's Smalltalk syntax
 result = parser.parse(tonel_content)  # Raises SyntaxError if invalid Smalltalk
-is_valid = parser.validate(tonel_content)  # Returns False if either is invalid
+is_valid, error_info = parser.validate(tonel_content)  # Returns (False, error_info) if either is invalid
 
 # Parse from file with full validation
 result = parser.parse_from_file("complete_example.st")
-is_file_valid = parser.validate_from_file("complete_example.st")
+is_file_valid, error_info = parser.validate_from_file("complete_example.st")
 ```
 
 ### Smalltalk Method Body Parsing
@@ -214,6 +221,8 @@ validate-tonel --without-method-body Counter.st
 # Validate invalid file
 validate-tonel InvalidFile.st
 # Output: ✗ 'InvalidFile.st' contains validation errors
+# Error at line 5: No valid class definition found
+# >>> invalid tonel content
 # Exit code: 1
 ```
 
@@ -268,10 +277,23 @@ The parser implements a multi-parser architecture:
 
 All parsers inherit from `BaseParser` and provide:
 
-- `validate(content: str) -> bool`: Validate string content
-- `validate_from_file(filepath: str) -> bool`: Validate file content
+- `validate(content: str) -> ValidationResult`: Validate string content, returns tuple
+  of (success, error_info)
+- `validate_from_file(filepath: str) -> ValidationResult`: Validate file content,
+  returns tuple of (success, error_info)
 - `parse(content: str)`: Parse string content
 - `parse_from_file(filepath: str)`: Parse file content
+
+#### ValidationResult
+
+The `validate` and `validate_from_file` methods return a `ValidationResult` tuple
+containing:
+
+- `bool`: `True` if validation succeeds, `False` otherwise
+- `Optional[Dict]`: Error information if validation fails, `None` if successful
+  - `reason`: Description of the error
+  - `line`: Line number where the error occurred
+  - `error_text`: Text content around the error location
 
 ## License
 

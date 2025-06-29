@@ -81,12 +81,12 @@ Counter >> increment [
 Counter >> value [
     ^ count
 ]"""
-        assert self.parser.validate(valid_content) is True
+        assert self.parser.validate(valid_content)[0] is True
 
     def test_validate_invalid_tonel_structure(self):
         """Test validate returns False for invalid Tonel structure."""
         invalid_tonel = "This is not valid Tonel content"
-        assert self.parser.validate(invalid_tonel) is False
+        assert self.parser.validate(invalid_tonel)[0] is False
 
     def test_validate_valid_tonel_invalid_smalltalk(self):
         """Test validate returns False for valid Tonel but invalid Smalltalk."""
@@ -98,7 +98,7 @@ Counter >> value [
 TestClass >> badMethod [
     x :=
 ]"""
-        assert self.parser.validate(content_with_bad_smalltalk) is False
+        assert self.parser.validate(content_with_bad_smalltalk)[0] is False
 
     def test_validate_class_only(self):
         """Test validate returns True for class definition only."""
@@ -106,11 +106,11 @@ TestClass >> badMethod [
     #name : #TestClass,
     #superclass : #Object
 }"""
-        assert self.parser.validate(class_only) is True
+        assert self.parser.validate(class_only)[0] is True
 
     def test_validate_empty_content(self):
         """Test validate returns False for empty content."""
-        assert self.parser.validate("") is False
+        assert self.parser.validate("")[0] is False
 
     def test_validate_complex_valid_content(self):
         """Test validate returns True for complex but valid content."""
@@ -143,7 +143,7 @@ ComplexClass >> processCollection: aCollection [
     ^ aCollection select: [ :each | each isNumber ]
         thenCollect: [ :num | num * 2 ]
 ]"""
-        assert self.parser.validate(complex_content) is True
+        assert self.parser.validate(complex_content)[0] is True
 
     def test_validate_method_with_blocks(self):
         """Test validate returns True for methods with valid blocks."""
@@ -158,7 +158,7 @@ BlockTest >> processNumbers [
         thenCollect: [ :odd | odd * 2 ].
     ^ result
 ]"""
-        assert self.parser.validate(content_with_blocks) is True
+        assert self.parser.validate(content_with_blocks)[0] is True
 
     def test_validate_method_with_nested_blocks(self):
         """Test validate returns True for methods with nested blocks."""
@@ -174,7 +174,7 @@ NestedTest >> nestedExample [
         ]
     ]
 ]"""
-        assert self.parser.validate(content_with_nested) is True
+        assert self.parser.validate(content_with_nested)[0] is True
 
     def test_validate_trait_with_methods(self):
         """Test validate returns True for trait with valid methods."""
@@ -190,7 +190,7 @@ TComparable >> < other [
 TComparable >> <= other [
     ^ (self compare: other) <= 0
 ]"""
-        assert self.parser.validate(trait_content) is True
+        assert self.parser.validate(trait_content)[0] is True
 
     def test_validate_extension_with_methods(self):
         """Test validate returns True for extension with valid methods."""
@@ -202,7 +202,7 @@ TComparable >> <= other [
 Object >> isTest [
     ^ false
 ]"""
-        assert self.parser.validate(extension_content) is True
+        assert self.parser.validate(extension_content)[0] is True
 
     def test_validate_from_file_valid(self):
         """Test validate_from_file returns True for valid file."""
@@ -218,7 +218,7 @@ TestClass >> test [
             f.write(valid_content)
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is True
+                assert self.parser.validate_from_file(f.name)[0] is True
             finally:
                 os.unlink(f.name)
 
@@ -229,7 +229,7 @@ TestClass >> test [
             f.write(invalid_content)
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is False
+                assert self.parser.validate_from_file(f.name)[0] is False
             finally:
                 os.unlink(f.name)
 
@@ -247,13 +247,13 @@ TestClass >> badMethod [
             f.write(content_with_bad_smalltalk)
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is False
+                assert self.parser.validate_from_file(f.name)[0] is False
             finally:
                 os.unlink(f.name)
 
     def test_validate_from_file_nonexistent(self):
         """Test validate_from_file returns False for nonexistent file."""
-        assert self.parser.validate_from_file("/nonexistent/file.st") is False
+        assert self.parser.validate_from_file("/nonexistent/file.st")[0] is False
 
     def test_parse_from_file_valid(self):
         """Test parse_from_file works for valid file."""

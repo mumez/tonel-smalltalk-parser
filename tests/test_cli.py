@@ -1,5 +1,6 @@
 """Tests for CLI functionality."""
 
+import io
 from pathlib import Path
 import tempfile
 from unittest.mock import patch
@@ -34,7 +35,7 @@ Counter >> value [
             Path(f.name).unlink()
 
     def test_validate_valid_tonel_file_without_method_body(self):
-        """Test validation of Tonel structure only."""
+        """Test validation of Tonel structure only with stderr output."""
         content = """Class {
     #name : #Counter,
     #superclass : #Object,
@@ -53,9 +54,15 @@ Counter >> value [
             result = validate_tonel_file(f.name, without_method_body=True)
             assert result is True
 
-            # Should fail when validating method bodies
-            result = validate_tonel_file(f.name, without_method_body=False)
-            assert result is False
+            # Should fail when validating method bodies and check stderr
+            stderr_capture = io.StringIO()
+            with patch("sys.stderr", stderr_capture):
+                result = validate_tonel_file(f.name, without_method_body=False)
+                assert result is False
+
+                stderr_output = stderr_capture.getvalue()
+                assert "Error at line" in stderr_output
+                assert "Invalid Smalltalk syntax" in stderr_output
 
             Path(f.name).unlink()
 
@@ -71,18 +78,33 @@ Counter >> value [
             assert result is False
 
     def test_validate_invalid_tonel_file(self):
-        """Test validation of invalid Tonel file."""
+        """Test validation of invalid Tonel file with stderr output."""
         content = "Invalid Tonel content"
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".st", delete=False) as f:
             f.write(content)
             f.flush()
 
-            result = validate_tonel_file(f.name, without_method_body=False)
-            assert result is False
+            # Capture stderr output
+            stderr_capture = io.StringIO()
+            with patch("sys.stderr", stderr_capture):
+                result = validate_tonel_file(f.name, without_method_body=False)
+                assert result is False
 
-            result = validate_tonel_file(f.name, without_method_body=True)
-            assert result is False
+                stderr_output = stderr_capture.getvalue()
+                assert "Error at line 1:" in stderr_output
+                assert "No valid class definition found" in stderr_output
+                assert ">>> Invalid Tonel content" in stderr_output
+
+            # Test with without_method_body=True
+            stderr_capture = io.StringIO()
+            with patch("sys.stderr", stderr_capture):
+                result = validate_tonel_file(f.name, without_method_body=True)
+                assert result is False
+
+                stderr_output = stderr_capture.getvalue()
+                assert "Error at line 1:" in stderr_output
+                assert "No valid class definition found" in stderr_output
 
             Path(f.name).unlink()
 
@@ -113,16 +135,26 @@ Counter >> value [
             Path(f.name).unlink()
 
     def test_cli_with_invalid_file(self):
-        """Test CLI with invalid Tonel file."""
+        """Test CLI with invalid Tonel file and stderr output."""
         content = "Invalid Tonel content"
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".st", delete=False) as f:
             f.write(content)
             f.flush()
 
-            with patch("sys.argv", ["validate-tonel", f.name]):
+            # Capture stderr output
+            stderr_capture = io.StringIO()
+            with (
+                patch("sys.argv", ["validate-tonel", f.name]),
+                patch("sys.stderr", stderr_capture),
+            ):
                 result = main()
                 assert result == 1
+
+                stderr_output = stderr_capture.getvalue()
+                assert "Error at line 1:" in stderr_output
+                assert "No valid class definition found" in stderr_output
+                assert ">>> Invalid Tonel content" in stderr_output
 
             Path(f.name).unlink()
 
@@ -147,18 +179,33 @@ Counter >> value [
                 result = main()
                 assert result == 0
 
-            # Should fail without the flag
-            with patch("sys.argv", ["validate-tonel", f.name]):
+            # Should fail without the flag and check stderr
+            stderr_capture = io.StringIO()
+            with (
+                patch("sys.argv", ["validate-tonel", f.name]),
+                patch("sys.stderr", stderr_capture),
+            ):
                 result = main()
                 assert result == 1
+
+                stderr_output = stderr_capture.getvalue()
+                assert "Error at line" in stderr_output
+                assert "Invalid Smalltalk syntax" in stderr_output
 
             Path(f.name).unlink()
 
     def test_cli_with_nonexistent_file(self):
-        """Test CLI with non-existent file."""
-        with patch("sys.argv", ["validate-tonel", "nonexistent.st"]):
+        """Test CLI with non-existent file and stderr output."""
+        stderr_capture = io.StringIO()
+        with (
+            patch("sys.argv", ["validate-tonel", "nonexistent.st"]),
+            patch("sys.stderr", stderr_capture),
+        ):
             result = main()
             assert result == 1
+
+            stderr_output = stderr_capture.getvalue()
+            assert "File 'nonexistent.st' not found" in stderr_output
 
     def test_cli_version(self):
         """Test CLI version flag."""

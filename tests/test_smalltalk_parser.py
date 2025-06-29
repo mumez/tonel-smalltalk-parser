@@ -447,23 +447,23 @@ class TestSmalltalkParserValidation:
     def test_validate_valid_smalltalk_code(self):
         """Test validate returns True for valid Smalltalk code."""
         valid_code = "| x | x := 42. ^ x + 1"
-        assert self.parser.validate(valid_code) is True
+        assert self.parser.validate(valid_code)[0] is True
 
     def test_validate_simple_expression(self):
         """Test validate returns True for simple expressions."""
-        assert self.parser.validate("^ self") is True
-        assert self.parser.validate("1 + 2") is True
-        assert self.parser.validate("'hello world'") is True
+        assert self.parser.validate("^ self")[0] is True
+        assert self.parser.validate("1 + 2")[0] is True
+        assert self.parser.validate("'hello world'")[0] is True
 
     def test_validate_empty_code(self):
         """Test validate returns True for empty code."""
-        assert self.parser.validate("") is True
+        assert self.parser.validate("")[0] is True
 
     def test_validate_invalid_syntax(self):
         """Test validate returns False for invalid syntax."""
-        assert self.parser.validate("^ [") is False  # Unclosed bracket
-        assert self.parser.validate("x := ") is False  # Incomplete assignment
-        assert self.parser.validate("| unclosed temporaries") is False
+        assert self.parser.validate("^ [")[0] is False  # Unclosed bracket
+        assert self.parser.validate("x := ")[0] is False  # Incomplete assignment
+        assert self.parser.validate("| unclosed temporaries")[0] is False
 
     def test_validate_complex_expressions(self):
         """Test validate returns True for complex valid expressions."""
@@ -474,26 +474,26 @@ class TestSmalltalkParserValidation:
         collection do: [ :each | each printOn: stream ].
         ^ result
         """
-        assert self.parser.validate(complex_code) is True
+        assert self.parser.validate(complex_code)[0] is True
 
     def test_validate_blocks(self):
         """Test validate returns True for various block expressions."""
-        assert self.parser.validate("[ 1 + 2 ]") is True
-        assert self.parser.validate("[ :x | x * 2 ]") is True
-        assert self.parser.validate("[ :x :y | x + y ]") is True
+        assert self.parser.validate("[ 1 + 2 ]")[0] is True
+        assert self.parser.validate("[ :x | x * 2 ]")[0] is True
+        assert self.parser.validate("[ :x :y | x + y ]")[0] is True
 
     def test_validate_cascades(self):
         """Test validate returns True for cascade expressions."""
-        assert self.parser.validate("stream nextPut: 'a'; nextPut: 'b'") is True
+        assert self.parser.validate("stream nextPut: 'a'; nextPut: 'b'")[0] is True
 
     def test_validate_arrays(self):
         """Test validate returns True for array expressions."""
-        assert self.parser.validate("#(1 2 3)") is True
-        assert self.parser.validate("{ 1 + 2. 'hello' }") is True
+        assert self.parser.validate("#(1 2 3)")[0] is True
+        assert self.parser.validate("{ 1 + 2. 'hello' }")[0] is True
 
     def test_validate_malformed_blocks(self):
         """Test validate returns False for malformed blocks."""
-        assert self.parser.validate("[ :x") is False  # Missing closing bracket
+        assert self.parser.validate("[ :x")[0] is False  # Missing closing bracket
         # Note: "[ :x | ]" is actually valid - empty block body is allowed
 
     def test_validate_from_file_valid(self):
@@ -503,7 +503,7 @@ class TestSmalltalkParserValidation:
             f.write(valid_code)
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is True
+                assert self.parser.validate_from_file(f.name)[0] is True
             finally:
                 os.unlink(f.name)
 
@@ -514,7 +514,7 @@ class TestSmalltalkParserValidation:
             f.write(invalid_code)
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is False
+                assert self.parser.validate_from_file(f.name)[0] is False
             finally:
                 os.unlink(f.name)
 
@@ -524,29 +524,29 @@ class TestSmalltalkParserValidation:
             f.write("")
             f.flush()
             try:
-                assert self.parser.validate_from_file(f.name) is True
+                assert self.parser.validate_from_file(f.name)[0] is True
             finally:
                 os.unlink(f.name)
 
     def test_validate_from_file_nonexistent(self):
         """Test validate_from_file returns False for nonexistent file."""
-        assert self.parser.validate_from_file("/nonexistent/file.st") is False
+        assert self.parser.validate_from_file("/nonexistent/file.st")[0] is False
 
     def test_validate_pseudo_variables(self):
         """Test validate returns True for pseudo variables."""
-        assert self.parser.validate("nil") is True
-        assert self.parser.validate("true") is True
-        assert self.parser.validate("false") is True
-        assert self.parser.validate("self") is True
-        assert self.parser.validate("super") is True
+        assert self.parser.validate("nil")[0] is True
+        assert self.parser.validate("true")[0] is True
+        assert self.parser.validate("false")[0] is True
+        assert self.parser.validate("self")[0] is True
+        assert self.parser.validate("super")[0] is True
 
     def test_validate_literals(self):
         """Test validate returns True for various literals."""
-        assert self.parser.validate("42") is True
-        assert self.parser.validate("3.14") is True
-        assert self.parser.validate("'string'") is True
-        assert self.parser.validate("#symbol") is True
-        assert self.parser.validate("$c") is True  # Character literal
+        assert self.parser.validate("42")[0] is True
+        assert self.parser.validate("3.14")[0] is True
+        assert self.parser.validate("'string'")[0] is True
+        assert self.parser.validate("#symbol")[0] is True
+        assert self.parser.validate("$c")[0] is True  # Character literal
 
 
 if __name__ == "__main__":
