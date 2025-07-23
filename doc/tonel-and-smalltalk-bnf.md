@@ -197,8 +197,8 @@ formally defines the syntactic structure of the Tonel format.
 <temps> ::= "|" ( <whitespace>? <identifier> )+ <whitespace>? "|"
 
 <!-- Statement list -->
-<statements> ::= <answer> <whitespace>?
-               | <expressions> <whitespace>? "." <whitespace>? <answer>
+<statements> ::= <answer> <whitespace>? "."? <whitespace>?
+               | <expressions> <whitespace>? "." <whitespace>? <answer> <whitespace>? "."? <whitespace>?
                | <expressions> "."? <whitespace>?
 
 <!-- Return statement -->

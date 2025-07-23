@@ -548,6 +548,48 @@ class TestSmalltalkParserValidation:
         assert self.parser.validate("#symbol")[0] is True
         assert self.parser.validate("$c")[0] is True  # Character literal
 
+    def test_validate_return_with_optional_period(self):
+        """Test validate returns True for return statements with optional period."""
+        # Return without period (should be valid)
+        assert self.parser.validate("^ self")[0] is True
+        assert self.parser.validate("^ 42")[0] is True
+
+        # Return with period (should also be valid)
+        assert self.parser.validate("^ self.")[0] is True
+        assert self.parser.validate("^ 42.")[0] is True
+
+        # Complex return expression with period
+        assert self.parser.validate("^ self class name.")[0] is True
+        assert self.parser.validate("^ (self getValue + 42).")[0] is True
+
+        # Return in block context with period
+        method_body = """
+        self reconnectMutex critical: [
+            self shouldEndReconnecting ifTrue: [
+                ^ self errorHandlingDo: [(SkReconnectEnded endpoint: self) signal].
+            ].
+        ]
+        """
+        assert self.parser.validate(method_body)[0] is True
+
+    def test_validate_return_statement_variations(self):
+        """Test various return statement formats are valid."""
+        # Simple returns
+        assert self.parser.validate("^ true")[0] is True
+        assert self.parser.validate("^ true.")[0] is True
+
+        # Return with message sends
+        assert self.parser.validate("^ self initialize")[0] is True
+        assert self.parser.validate("^ self initialize.")[0] is True
+
+        # Return with block expressions
+        assert self.parser.validate("^ [self doSomething]")[0] is True
+        assert self.parser.validate("^ [self doSomething].")[0] is True
+
+        # Return with complex expressions
+        assert self.parser.validate("^ self method: arg1 with: arg2")[0] is True
+        assert self.parser.validate("^ self method: arg1 with: arg2.")[0] is True
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

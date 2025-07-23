@@ -596,6 +596,9 @@ class SmalltalkParser(BaseParser):
             # Check for return statement
             if self._match(TokenType.RETURN):
                 statements.append(self._parse_return())
+                # Handle optional period after return statement
+                if self._match(TokenType.PERIOD):
+                    self._advance()
                 break  # Return is last statement
 
             # Parse expression
