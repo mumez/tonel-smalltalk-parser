@@ -590,6 +590,20 @@ class TestSmalltalkParserValidation:
         assert self.parser.validate("^ self method: arg1 with: arg2")[0] is True
         assert self.parser.validate("^ self method: arg1 with: arg2.")[0] is True
 
+        # Return with assignment expressions
+        assert self.parser.validate("^ a := 100")[0] is True
+        assert self.parser.validate("^ a := 100.")[0] is True
+        assert self.parser.validate("^ result := self getValue")[0] is True
+        assert self.parser.validate("^ result := self getValue.")[0] is True
+
+        # Return with chained assignments
+        assert self.parser.validate("^ a := b := 100")[0] is True
+        assert self.parser.validate("^ a := b := 100.")[0] is True
+        assert self.parser.validate("^ x := y := z := 42")[0] is True
+        assert self.parser.validate("^ x := y := z := 42.")[0] is True
+        assert self.parser.validate("^ result := temp := self compute")[0] is True
+        assert self.parser.validate("^ result := temp := self compute.")[0] is True
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
