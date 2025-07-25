@@ -933,6 +933,24 @@ class SmalltalkParser(BaseParser):
                 # Nested literal array
                 nested = self._parse_literal_array()
                 elements.append(nested.elements)
+            elif self._match(TokenType.TRUE):
+                self._advance()
+                elements.append(True)
+            elif self._match(TokenType.FALSE):
+                self._advance()
+                elements.append(False)
+            elif self._match(TokenType.NIL):
+                self._advance()
+                elements.append(None)
+            elif self._match(TokenType.SELF):
+                self._advance()
+                elements.append("self")
+            elif self._match(TokenType.SUPER):
+                self._advance()
+                elements.append("super")
+            elif self._match(TokenType.THISCONTEXT):
+                self._advance()
+                elements.append("thisContext")
             else:
                 break
 

@@ -264,6 +264,20 @@ class TestSmalltalkParser:
         assert isinstance(stmt, LiteralArray)
         assert stmt.elements == [1, 2, "hello", "symbol"]
 
+        # Test literal array with pseudo variables
+        ast2 = parser.parse("#(true false nil)")
+        assert len(ast2.statements) == 1
+        stmt2 = ast2.statements[0]
+        assert isinstance(stmt2, LiteralArray)
+        assert stmt2.elements == [True, False, None]
+
+        # Test literal array with identifiers and self/super
+        ast3 = parser.parse("#(aaa bbb self super)")
+        assert len(ast3.statements) == 1
+        stmt3 = ast3.statements[0]
+        assert isinstance(stmt3, LiteralArray)
+        assert stmt3.elements == ["aaa", "bbb", "self", "super"]
+
     def test_dynamic_array(self):
         """Test parsing dynamic array."""
         parser = SmalltalkParser()

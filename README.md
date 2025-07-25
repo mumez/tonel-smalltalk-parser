@@ -241,7 +241,7 @@ uv sync
 pre-commit install
 
 # Run tests
-python -m pytest tests/
+uv run pytest tests/
 
 # Lint and format code
 ruff check src/ tests/
