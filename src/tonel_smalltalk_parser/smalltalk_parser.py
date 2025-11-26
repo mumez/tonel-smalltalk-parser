@@ -322,10 +322,29 @@ class SmalltalkLexer:
         """Determine if | should be treated as a binary selector based on context.
 
         Returns True if | should be treated as binary selector, False if it's a pipe.
+
+        Key rules:
+        1. Inside parentheses: | is always a binary operator
+        2. At block/method start: | is a temporary variable delimiter
+        3. After expression: | is a binary operator
         """
         if not tokens:
             return False
 
+        # First, check if we're inside parentheses by tracking unmatched parens
+        paren_depth = 0
+        for i in range(len(tokens) - 1, -1, -1):
+            token = tokens[i]
+            if token.type == TokenType.RPAREN:
+                paren_depth += 1
+            elif token.type == TokenType.LPAREN:
+                paren_depth -= 1
+                if paren_depth < 0:
+                    # We're inside an unclosed parenthesized expression
+                    # In this context, | is always a binary operator
+                    return True
+
+        # Not in parentheses, check for block/method temporary variable context
         # Look for the current block context by finding the most recent unmatched [
         bracket_count = 0
         for i in range(len(tokens) - 1, -1, -1):
@@ -357,9 +376,14 @@ class SmalltalkLexer:
                         else:
                             break
 
-                    # Count pipes in the block
+                    # Count pipes in the block (excluding those inside parentheses)
+                    paren_depth_in_block = 0
                     for bt in block_tokens:
-                        if bt.type == TokenType.PIPE:
+                        if bt.type == TokenType.LPAREN:
+                            paren_depth_in_block += 1
+                        elif bt.type == TokenType.RPAREN:
+                            paren_depth_in_block -= 1
+                        elif bt.type == TokenType.PIPE and paren_depth_in_block == 0:
                             pipe_count += 1
 
                     # Decision logic:
@@ -405,8 +429,17 @@ class SmalltalkLexer:
                     break
 
         # If not in a block, use general heuristic
-        # General case: odd number of pipes means we're in temporaries
-        all_pipe_count = sum(1 for t in tokens if t.type == TokenType.PIPE)
+        # General case: odd number of pipes (not in parens) means we're in temporaries
+        all_pipe_count = 0
+        paren_depth_global = 0
+        for t in tokens:
+            if t.type == TokenType.LPAREN:
+                paren_depth_global += 1
+            elif t.type == TokenType.RPAREN:
+                paren_depth_global -= 1
+            elif t.type == TokenType.PIPE and paren_depth_global == 0:
+                all_pipe_count += 1
+
         if all_pipe_count % 2 == 1:
             return False
 
