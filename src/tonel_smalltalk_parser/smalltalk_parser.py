@@ -962,6 +962,10 @@ class SmalltalkParser(BaseParser):
                 TokenType.BINARY_SELECTOR
             ):
                 elements.append(self._advance().value)
+            elif self._match(TokenType.CASCADE):
+                # Semicolon can appear in literal arrays as a symbol
+                self._advance()
+                elements.append(";")
             elif self._match(TokenType.LPARRAY):
                 # Nested literal array
                 nested = self._parse_literal_array()

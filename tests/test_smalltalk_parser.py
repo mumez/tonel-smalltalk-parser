@@ -278,6 +278,34 @@ class TestSmalltalkParser:
         assert isinstance(stmt3, LiteralArray)
         assert stmt3.elements == ["aaa", "bbb", "self", "super"]
 
+        # Test literal array with semicolons
+        ast4 = parser.parse("#(uint64 internal; uint64 internalHigh;)")
+        assert len(ast4.statements) == 1
+        stmt4 = ast4.statements[0]
+        assert isinstance(stmt4, LiteralArray)
+        assert stmt4.elements == [
+            "uint64",
+            "internal",
+            ";",
+            "uint64",
+            "internalHigh",
+            ";",
+        ]
+
+        # Test literal array with only semicolons
+        ast5 = parser.parse("#(;)")
+        assert len(ast5.statements) == 1
+        stmt5 = ast5.statements[0]
+        assert isinstance(stmt5, LiteralArray)
+        assert stmt5.elements == [";"]
+
+        # Test literal array with mixed elements and semicolons
+        ast6 = parser.parse("#(1 ; 2 ; 3)")
+        assert len(ast6.statements) == 1
+        stmt6 = ast6.statements[0]
+        assert isinstance(stmt6, LiteralArray)
+        assert stmt6.elements == [1, ";", 2, ";", 3]
+
     def test_dynamic_array(self):
         """Test parsing dynamic array."""
         parser = SmalltalkParser()
