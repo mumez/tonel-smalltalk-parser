@@ -289,7 +289,7 @@ formally defines the syntactic structure of the Tonel format.
 
 <literalArrayRest> ::= <whitespace>? ( <literalArrayItem> <whitespace>? )* ")"
 
-<literalArrayItem> ::= <parsetimeLiteral> | <literalArray> | <identifier> | <binarySelector>
+<literalArrayItem> ::= <parsetimeLiteral> | <literalArray> | <identifier> | <binarySelector> | ";"
 
 <!-- Byte array: array of integers 0-255 -->
 <byteArray> ::= "#[" <whitespace>? ( <byteValue> <whitespace>? )* "]"
@@ -347,6 +347,14 @@ The parser implementation includes several extensions beyond the basic BNF:
      - `(expr1 | expr2)` - bitwise OR operator
      - `(pragma arguments second | all)` - binary message send
      - `((condition1) | (condition2))` - logical OR in conditional expressions
+
+1. **Semicolon in Literal Arrays**: Semicolons can appear as elements in literal arrays
+
+   - Treated as symbols within array context, not as cascade operators
+   - `#(uint64 internal; uint64 internalHigh;)` - semicolons as array elements
+   - `#(;)` - array containing only a semicolon
+   - `#(1 ; 2 ; 3)` - mixed numeric and semicolon elements
+   - Enables representation of structured data with semicolon delimiters
 
 ### ANSI Smalltalk Compatibility
 
