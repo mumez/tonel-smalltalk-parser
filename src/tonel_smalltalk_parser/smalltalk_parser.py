@@ -938,58 +938,92 @@ class SmalltalkParser(BaseParser):
         self._consume(TokenType.RBRACE)
         return DynamicArray(expressions)
 
+    def _parse_literal_array_element(self) -> tuple[bool, Any]:
+        """Parse a single literal array element.
+
+        Returns:
+            tuple: (success, element) where success is True if an element was parsed
+
+        """
+        if self._match(TokenType.NUMBER):
+            value = self._advance().value
+            return (True, self._parse_number_literal(value))
+        elif self._match(TokenType.STRING):
+            value = self._advance().value[1:-1].replace("''", "'")
+            return (True, value)
+        elif self._match(TokenType.CHARACTER):
+            value = self._advance().value[1]
+            return (True, value)
+        elif self._match(TokenType.SYMBOL):
+            value = self._advance().value[1:]
+            if value.startswith("'") and value.endswith("'"):
+                value = value[1:-1].replace("''", "'")
+            return (True, value)
+        elif self._match(TokenType.IDENTIFIER) or self._match(
+            TokenType.BINARY_SELECTOR
+        ):
+            return (True, self._advance().value)
+        elif self._match(TokenType.CASCADE):
+            # Semicolon can appear in literal arrays as a symbol
+            self._advance()
+            return (True, ";")
+        elif self._match(TokenType.TRUE):
+            self._advance()
+            return (True, True)
+        elif self._match(TokenType.FALSE):
+            self._advance()
+            return (True, False)
+        elif self._match(TokenType.NIL):
+            self._advance()
+            return (True, None)
+        elif self._match(TokenType.SELF):
+            self._advance()
+            return (True, "self")
+        elif self._match(TokenType.SUPER):
+            self._advance()
+            return (True, "super")
+        elif self._match(TokenType.THISCONTEXT):
+            self._advance()
+            return (True, "thisContext")
+        else:
+            return (False, None)
+
     def _parse_literal_array(self) -> LiteralArray:
         """Parse literal array: #( elements )."""
         self._consume(TokenType.LPARRAY)
 
         elements = []
         while not self._match(TokenType.RPAREN, TokenType.EOF):
-            if self._match(TokenType.NUMBER):
-                value = self._advance().value
-                elements.append(self._parse_number_literal(value))
-            elif self._match(TokenType.STRING):
-                value = self._advance().value[1:-1].replace("''", "'")
-                elements.append(value)
-            elif self._match(TokenType.CHARACTER):
-                value = self._advance().value[1]  # Remove $
-                elements.append(value)
-            elif self._match(TokenType.SYMBOL):
-                value = self._advance().value[1:]
-                if value.startswith("'") and value.endswith("'"):
-                    value = value[1:-1].replace("''", "'")
-                elements.append(value)
-            elif self._match(TokenType.IDENTIFIER) or self._match(
-                TokenType.BINARY_SELECTOR
-            ):
-                elements.append(self._advance().value)
-            elif self._match(TokenType.CASCADE):
-                # Semicolon can appear in literal arrays as a symbol
-                self._advance()
-                elements.append(";")
-            elif self._match(TokenType.LPARRAY):
-                # Nested literal array
+            if self._match(TokenType.LPARRAY):
+                # Nested literal array #(...)
                 nested = self._parse_literal_array()
                 elements.append(nested.elements)
-            elif self._match(TokenType.TRUE):
-                self._advance()
-                elements.append(True)
-            elif self._match(TokenType.FALSE):
-                self._advance()
-                elements.append(False)
-            elif self._match(TokenType.NIL):
-                self._advance()
-                elements.append(None)
-            elif self._match(TokenType.SELF):
-                self._advance()
-                elements.append("self")
-            elif self._match(TokenType.SUPER):
-                self._advance()
-                elements.append("super")
-            elif self._match(TokenType.THISCONTEXT):
-                self._advance()
-                elements.append("thisContext")
+            elif self._match(TokenType.LPAREN):
+                # Regular parenthesis in literal array is treated as nested array
+                # e.g., #(a b(c d)) becomes #(#a #b #(#c #d))
+                self._advance()  # consume '('
+                nested_elements = []
+                while not self._match(TokenType.RPAREN, TokenType.EOF):
+                    success, element = self._parse_literal_array_element()
+                    if success:
+                        nested_elements.append(element)
+                    elif self._match(TokenType.LPAREN):
+                        # Recursively handle nested parentheses - not yet supported
+                        token = self._current_token()
+                        raise SyntaxError(
+                            f"Line {token.line}, Column {token.column}: "
+                            "Nested parentheses in literal arrays not fully supported"
+                        )
+                    else:
+                        break
+                self._consume(TokenType.RPAREN)
+                elements.append(nested_elements)
             else:
-                break
+                success, element = self._parse_literal_array_element()
+                if success:
+                    elements.append(element)
+                else:
+                    break
 
         self._consume(TokenType.RPAREN)
         return LiteralArray(elements)

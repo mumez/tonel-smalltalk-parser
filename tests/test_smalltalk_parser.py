@@ -306,6 +306,31 @@ class TestSmalltalkParser:
         assert isinstance(stmt6, LiteralArray)
         assert stmt6.elements == [1, ";", 2, ";", 3]
 
+        # Test literal array with commas
+        ast7 = parser.parse("#(a , b , c)")
+        assert len(ast7.statements) == 1
+        stmt7 = ast7.statements[0]
+        assert isinstance(stmt7, LiteralArray)
+        assert stmt7.elements == ["a", ",", "b", ",", "c"]
+
+        # Test literal array with parentheses (nested arrays)
+        ast8 = parser.parse("#(a b(c d) e)")
+        assert len(ast8.statements) == 1
+        stmt8 = ast8.statements[0]
+        assert isinstance(stmt8, LiteralArray)
+        assert stmt8.elements == ["a", "b", ["c", "d"], "e"]
+
+        # Test complex nested array with C function signature
+        ast9 = parser.parse("#(bool UnlockFileEx(void* hFile, uint 0))")
+        assert len(ast9.statements) == 1
+        stmt9 = ast9.statements[0]
+        assert isinstance(stmt9, LiteralArray)
+        assert stmt9.elements == [
+            "bool",
+            "UnlockFileEx",
+            ["void", "*", "hFile", ",", "uint", 0],
+        ]
+
     def test_dynamic_array(self):
         """Test parsing dynamic array."""
         parser = SmalltalkParser()
