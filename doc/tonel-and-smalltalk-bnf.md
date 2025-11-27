@@ -76,6 +76,8 @@ formally defines the syntactic structure of the Tonel format.
 
 <!-- Binary selector: one or more special characters -->
 <!-- Note: Multi-character operators like <=, >=, ~= are recognized as single tokens -->
+<!-- Note: The | character is context-sensitive - it can be a binary operator (bitwise OR)
+     or a delimiter for temporary variables/block parameters depending on context -->
 <binarySelector> ::= <binaryChar>+
 
 <!-- Characters usable in binary operators -->
@@ -339,7 +341,12 @@ The parser implementation includes several extensions beyond the basic BNF:
 
    - Block parameter separator: `[ :x | x + 1 ]`
    - Temporary variable delimiter: `[ | temp | temp := 42 ]`
-   - Binary message operator: `a | b`
+   - Binary message operator (bitwise OR): `a | b`
+   - **Parentheses Context Rule**: Inside parentheses, `|` is always treated as a binary
+     operator, never as a temp variable delimiter
+     - `(expr1 | expr2)` - bitwise OR operator
+     - `(pragma arguments second | all)` - binary message send
+     - `((condition1) | (condition2))` - logical OR in conditional expressions
 
 ### ANSI Smalltalk Compatibility
 
@@ -484,6 +491,38 @@ function parseMethodDefinition(input, startPos):
        ^ $]  "character ']'"
    ]
    ```
+
+1. **Parentheses context and pipe disambiguation**:
+
+   The `|` character has multiple meanings in Smalltalk that must be disambiguated
+   during parsing:
+
+   - **Temporary variable delimiter**: `[ | temp | temp := 42 ]`
+   - **Block parameter separator**: `[ :x | x + 1 ]`
+   - **Binary operator (bitwise OR)**: `a | b` or `(expr1 | expr2)`
+
+   **Critical Rule**: When `|` appears inside unclosed parentheses, it is **always** a
+   binary operator, never a temporary variable delimiter.
+
+   ```smalltalk
+   MyClass >> example [
+       | result |  "temp variable delimiter at top level"
+       result := (condition1 | condition2).  "binary OR inside parens"
+       ^ result ifTrue: [ :x |  "block parameter separator"
+           (x value | defaultValue)  "binary OR inside parens"
+       ]
+   ]
+   ```
+
+   Implementation strategy:
+
+   - Track parentheses depth during lexical analysis
+   - When `|` is encountered with unclosed parentheses (depth > 0), classify as binary
+     operator
+   - When `|` is encountered at parentheses depth 0, check block/method context to
+     determine if temp variable delimiter or parameter separator
+   - This prevents misinterpreting expressions like `(pragma arguments second | all)` as
+     attempting to declare temp variables inside parentheses
 
 ### Recommended Approach
 
