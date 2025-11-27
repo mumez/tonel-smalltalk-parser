@@ -289,7 +289,11 @@ formally defines the syntactic structure of the Tonel format.
 
 <literalArrayRest> ::= <whitespace>? ( <literalArrayItem> <whitespace>? )* ")"
 
-<literalArrayItem> ::= <parsetimeLiteral> | <literalArray> | <identifier> | <binarySelector> | ";"
+<literalArrayItem> ::= <parsetimeLiteral> | <literalArray> | <nestedArrayByParens> | <identifier> | <binarySelector> | ";"
+
+<!-- Nested array created by regular parentheses within literal array context -->
+<!-- Example: #(a b(c d)) is equivalent to #(a b #(c d)) -->
+<nestedArrayByParens> ::= "(" <whitespace>? ( <literalArrayItem> <whitespace>? )* ")"
 
 <!-- Byte array: array of integers 0-255 -->
 <byteArray> ::= "#[" <whitespace>? ( <byteValue> <whitespace>? )* "]"
@@ -355,6 +359,23 @@ The parser implementation includes several extensions beyond the basic BNF:
    - `#(;)` - array containing only a semicolon
    - `#(1 ; 2 ; 3)` - mixed numeric and semicolon elements
    - Enables representation of structured data with semicolon delimiters
+
+1. **Parentheses as Nested Arrays**: Regular parentheses in literal arrays create nested
+   arrays
+
+   - Parentheses without `#` prefix automatically create nested literal arrays
+   - `#(a b(c d))` is equivalent to `#(a b #(c d))`
+   - Enables concise syntax for hierarchical data structures
+   - **Comma Support**: Commas are treated as binary selectors, thus valid array
+     elements
+     - `#(a , b)` → array with comma as symbol between elements
+     - `#(void* hFile, uint 0)` → array containing type declarations with commas
+   - **Real-world Use Case**: FFI (Foreign Function Interface) declarations
+     - `#(bool UnlockFileEx(void* hFile, uint nBytes))` - C function signature
+     - Parses as:
+       `['bool', 'UnlockFileEx', ['void', '*', 'hFile', ',', 'uint', 'nBytes']]`
+   - **Recursive Nesting**: Nested parentheses create multi-level array structures
+     - Future enhancement: full support for arbitrary nesting depth
 
 ### ANSI Smalltalk Compatibility
 
