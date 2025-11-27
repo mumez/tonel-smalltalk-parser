@@ -9,7 +9,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
-- **Bitwise OR operator in parentheses** (Issue #1 from fix-todo.md)
+- **Bitwise OR operator in parentheses**
   - Fixed parser incorrectly interpreting `|` as temporary variable declaration
     delimiter when inside parenthesized expressions
   - The parser now correctly treats `|` as a binary operator (bitwise OR) in expressions
