@@ -324,15 +324,20 @@ class SmalltalkLexer:
         Returns True if | should be treated as binary selector, False if it's a pipe.
 
         Key rules:
-        1. Inside parentheses: | is always a binary operator
-        2. At block/method start: | is a temporary variable delimiter
-        3. After expression: | is a binary operator
+        1. Inside parentheses BUT outside blocks: | is a binary operator
+        2. Inside blocks (even if in parentheses): use block pipe rules
+        3. At block/method start: | is a temporary variable delimiter
+        4. After expression: | is a binary operator
         """
         if not tokens:
             return False
 
-        # First, check if we're inside parentheses by tracking unmatched parens
+        # First, check if we're inside parentheses
+        # Key insight: Once inside parentheses, | is ALWAYS binary operator
+        # This is true even if we're inside a block: [ :x | (a | b) ]
+        #                                                         ^ this | is binary
         paren_depth = 0
+
         for i in range(len(tokens) - 1, -1, -1):
             token = tokens[i]
             if token.type == TokenType.RPAREN:
@@ -340,8 +345,9 @@ class SmalltalkLexer:
             elif token.type == TokenType.LPAREN:
                 paren_depth -= 1
                 if paren_depth < 0:
-                    # We're inside an unclosed parenthesized expression
+                    # We're inside unclosed parentheses
                     # In this context, | is always a binary operator
+                    # regardless of whether we're in a block or not
                     return True
 
         # Not in parentheses, check for block/method temporary variable context
