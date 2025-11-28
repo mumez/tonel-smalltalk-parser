@@ -102,6 +102,33 @@ formally defines the syntactic structure of the Tonel format.
 <!-- Dictionary value: primitive or composite object -->
 <mapValue> ::= <primitive> | <object> | <list> | <association> | <map> | <reference>
 
+<!-- STON Object: class-tagged structure with list or map contents -->
+<object> ::= <classTag> <whitespace>? ( <list> | <map> )
+
+<!-- Class tag: uppercase identifier for class names -->
+<classTag> ::= <upperLetter> <letterOrDigitOrUnderscore>*
+
+<!-- STON List: ordered sequence in square brackets -->
+<list> ::= "[" <whitespace>? <listElement>? ( "," <whitespace>? <listElement> )* <whitespace>? "]"
+
+<!-- List element: any STON value type -->
+<listElement> ::= <primitive> | <object> | <list> | <association> | <map> | <reference>
+
+<!-- STON Association: key-value pair -->
+<association> ::= <associationKey> <whitespace>? ":" <whitespace>? <associationValue>
+
+<!-- Association key: any STON value type -->
+<associationKey> ::= <primitive> | <symbol> | <reference>
+
+<!-- Association value: any STON value type -->
+<associationValue> ::= <primitive> | <object> | <list> | <association> | <map> | <reference>
+
+<!-- STON Map: unordered collection of associations in braces -->
+<map> ::= "{" <whitespace>? <mapEntry>? ( "," <whitespace>? <mapEntry> )* <whitespace>? "}"
+
+<!-- Reference: ordinal reference to previously encountered object -->
+<reference> ::= "@" <digit>+
+
 <!-- Symbol: identifier prefixed with # -->
 <symbol> ::= <simpleSymbol> | <keywordSymbol> | <binarySymbol> | <genericSymbol>
 
