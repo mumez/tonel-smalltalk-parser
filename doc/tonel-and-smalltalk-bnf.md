@@ -548,37 +548,35 @@ function parseMethodDefinition(input, startPos):
    ]
    ```
 
-1. **Parentheses context and pipe disambiguation**:
+1. **Pipe operator (`|`) disambiguation**:
 
-   The `|` character has multiple meanings in Smalltalk that must be disambiguated
-   during parsing:
+   The `|` character has multiple meanings in Smalltalk:
 
+   - **Parameter terminator**: `[ :x | x + 1 ]`
    - **Temporary variable delimiter**: `[ | temp | temp := 42 ]`
-   - **Block parameter separator**: `[ :x | x + 1 ]`
-   - **Binary operator (bitwise OR)**: `a | b` or `(expr1 | expr2)`
+   - **Binary operator (bitwise OR)**: `a | b`, `(expr1 | expr2)`, `[ :x | (a | b) ]`
 
-   **Critical Rule**: When `|` appears inside unclosed parentheses, it is **always** a
-   binary operator, never a temporary variable delimiter.
+   **Position-based rules** (parentheses are irrelevant):
+
+   1. After block parameters (`:param`), first `|` is parameter terminator
+   1. If parameter terminator `|` is followed by `|`, it starts temporaries
+   1. After temp start `|`, next `|` closes temporaries
+   1. All other `|` are binary operators
 
    ```smalltalk
-   MyClass >> example [
-       | result |  "temp variable delimiter at top level"
-       result := (condition1 | condition2).  "binary OR inside parens"
-       ^ result ifTrue: [ :x |  "block parameter separator"
-           (x value | defaultValue)  "binary OR inside parens"
-       ]
-   ]
+   [ :x | x + 1 ]              "| is parameter terminator"
+   [ | temp | temp := 42 ]     "| are temp variable delimiters"
+   [ :x | | temp | temp ]      "first | terminates params, next pair delimits temps"
+   [ :x | (a | b) ]            "second | is binary OR operator"
    ```
 
    Implementation strategy:
 
-   - Track parentheses depth during lexical analysis
-   - When `|` is encountered with unclosed parentheses (depth > 0), classify as binary
-     operator
-   - When `|` is encountered at parentheses depth 0, check block/method context to
-     determine if temp variable delimiter or parameter separator
-   - This prevents misinterpreting expressions like `(pragma arguments second | all)` as
-     attempting to declare temp variables inside parentheses
+   - Track position within block/method body (after opening `[`)
+   - Count parameters (`:identifier` patterns)
+   - Count pipes already seen
+   - Apply position-based rules to determine pipe meaning
+   - Key insight: Only position in block/method body matters, not parentheses context
 
 ### Recommended Approach
 
