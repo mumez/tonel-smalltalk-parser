@@ -83,11 +83,15 @@ inheriting from them, allowing it to validate Tonel structure first, then valida
 method's Smalltalk body separately, providing detailed error reporting for exactly where
 syntax issues occur.
 
-### Critical Parsing Challenge
+### Critical Parsing Challenges
 
-The grammar addresses a key parsing challenge: distinguishing between `]` characters
-that close Smalltalk blocks within method bodies versus `]` characters that terminate
-the method definition itself. The specification provides three resolution strategies:
+The grammar addresses two key parsing challenges:
+
+**1. Bracket Boundary Detection**
+
+Distinguishing between `]` characters that close Smalltalk blocks within method bodies
+versus `]` characters that terminate the method definition itself. The specification
+provides three resolution strategies:
 
 1. **Bracket Counting** (recommended) - Track nested brackets while respecting string
    and comment boundaries
@@ -98,6 +102,21 @@ the method definition itself. The specification provides three resolution strate
 This is implemented in `BracketParser` which handles bracket matching while correctly
 ignoring brackets in string literals (`'...'`), comments (`"..."`), and character
 literals (`$]`).
+
+**2. Pipe Operator Disambiguation**
+
+Distinguishing between `|` as a pipe (parameter terminator, temporary variable
+delimiter) versus `|` as a binary operator (bitwise OR). The parser uses position-based
+rules:
+
+1. After block parameters (`:param`), first `|` is parameter terminator (PIPE)
+1. If parameter terminator `|` is followed by `|`, it starts temps (PIPE)
+1. After temp start `|`, next `|` closes temps (PIPE)
+1. All other `|` are binary operators (BINARY_SELECTOR)
+
+Key insight: Parentheses are irrelevant to pipe meaning - only the position within
+block/method body matters. This is implemented in `SmalltalkLexer._is_binary_context()`
+method.
 
 ## Development Notes
 
