@@ -323,35 +323,18 @@ class SmalltalkLexer:
 
         Returns True if | should be treated as binary selector, False if it's a pipe.
 
-        Key rules:
-        1. Inside parentheses BUT outside blocks: | is a binary operator
-        2. Inside blocks (even if in parentheses): use block pipe rules
-        3. At block/method start: | is a temporary variable delimiter
-        4. After expression: | is a binary operator
+        Simplified rules:
+        1. After block parameters (:param), first | is parameter terminator (PIPE)
+        2. If parameter terminator | is followed by |, it starts temps (PIPE)
+        3. After temp start |, next | closes temps (PIPE)
+        4. All other | are binary operators (BINARY_SELECTOR)
+
+        Parentheses do NOT affect pipe meaning.
         """
         if not tokens:
             return False
 
-        # First, check if we're inside parentheses
-        # Key insight: Once inside parentheses, | is ALWAYS binary operator
-        # This is true even if we're inside a block: [ :x | (a | b) ]
-        #                                                         ^ this | is binary
-        paren_depth = 0
-
-        for i in range(len(tokens) - 1, -1, -1):
-            token = tokens[i]
-            if token.type == TokenType.RPAREN:
-                paren_depth += 1
-            elif token.type == TokenType.LPAREN:
-                paren_depth -= 1
-                if paren_depth < 0:
-                    # We're inside unclosed parentheses
-                    # In this context, | is always a binary operator
-                    # regardless of whether we're in a block or not
-                    return True
-
-        # Not in parentheses, check for block/method temporary variable context
-        # Look for the current block context by finding the most recent unmatched [
+        # Check for block context
         bracket_count = 0
         for i in range(len(tokens) - 1, -1, -1):
             token = tokens[i]
@@ -361,20 +344,14 @@ class SmalltalkLexer:
                 bracket_count -= 1
                 if bracket_count < 0:
                     # Found the opening bracket for current block
-                    # Analyze the block content from position i+1 to end
-                    block_start = i + 1
-                    block_tokens = tokens[block_start:]
-
-                    # Parse block structure: [ :param1 :param2 | temp1 temp2 | stmts ]
-                    pos = 0
-                    param_count = 0
-                    pipe_count = 0
+                    block_tokens = tokens[i + 1 :]
 
                     # Count parameters (: followed by identifier)
-                    while pos < len(block_tokens):
+                    param_count = 0
+                    pos = 0
+                    while pos < len(block_tokens) - 1:
                         if (
-                            pos < len(block_tokens) - 1
-                            and block_tokens[pos].type == TokenType.COLON
+                            block_tokens[pos].type == TokenType.COLON
                             and block_tokens[pos + 1].type == TokenType.IDENTIFIER
                         ):
                             param_count += 1
@@ -382,76 +359,76 @@ class SmalltalkLexer:
                         else:
                             break
 
-                    # Count pipes in the block (excluding those inside parentheses)
-                    paren_depth_in_block = 0
-                    for bt in block_tokens:
-                        if bt.type == TokenType.LPAREN:
-                            paren_depth_in_block += 1
-                        elif bt.type == TokenType.RPAREN:
-                            paren_depth_in_block -= 1
-                        elif bt.type == TokenType.PIPE and paren_depth_in_block == 0:
-                            pipe_count += 1
+                    # Count pipes already seen
+                    pipe_count = sum(
+                        1 for t in block_tokens if t.type == TokenType.PIPE
+                    )
 
-                    # Decision logic:
-                    # - If we have parameters but no pipes yet, next | separates params
-                    # - If we have one pipe after parameters, we might be in temporaries
-                    # - If odd number of pipes, next | closes temporaries
-                    # - If even pipes and last token is receiver, | is binary
-
+                    # Rule 1: First | after parameters is terminator
                     if param_count > 0 and pipe_count == 0:
-                        # Parameters but no separator yet - this | separates params
                         return False
 
+                    # Rule 2: Handle pipe_count==1 case
+                    # Two scenarios:
+                    # a) [ :param | | temp | ... ] - param terminator then temp
+                    # b) [ | temp | ... ] - temp variable closing
+                    # c) [ :param | expr | expr2 ] - binary operator
+                    if pipe_count == 1:
+                        if param_count == 0:
+                            # Pattern: [ | temp | - closing temp variables
+                            return False
+                        # Pattern with parameters: check if followed by another |
+                        first_pipe_idx = next(
+                            idx
+                            for idx, t in enumerate(block_tokens)
+                            if t.type == TokenType.PIPE
+                        )
+                        if first_pipe_idx + 1 < len(block_tokens):
+                            next_token = block_tokens[first_pipe_idx + 1]
+                            if next_token.type == TokenType.PIPE:
+                                # [ :param | | temp - second | starting temps
+                                return False
+                        # [ :param | expr | - binary operator
+                        return self._is_expression_receiver(block_tokens[-1])
+
+                    # Rule 3: Check for temp closing patterns
+                    # [ | temp | - pipe_count=1 (odd)
+                    # [ :param | | temp | - pipe_count=2 with params
                     if pipe_count % 2 == 1:
-                        # Odd number of pipes means we're in temporaries, | closes them
                         return False
 
-                    # Special case: if we have even pipes and the last token
-                    # is an identifier that could be a temp variable (not followed by
-                    # something that makes it a receiver), treat | as closing temps
-                    if (
-                        pipe_count > 0
-                        and pipe_count % 2 == 0
-                        and len(block_tokens) > 0
-                        and block_tokens[-1].type == TokenType.IDENTIFIER
-                    ):
-                        # Look for pattern: | temp1 temp2 | (temporaries context)
-                        # vs temp1 | temp2 (binary message context)
+                    # Special case: [ :param | | temp |
+                    # pipe_count=2, check if 2nd pipe is immediately after 1st
+                    if param_count > 0 and pipe_count == 2:
+                        # Find first two pipes
+                        pipe_indices = [
+                            i
+                            for i, t in enumerate(block_tokens)
+                            if t.type == TokenType.PIPE
+                        ]
+                        # If 2nd pipe immediately follows 1st, this is temp closing
+                        if (
+                            len(pipe_indices) >= 2
+                            and pipe_indices[1] == pipe_indices[0] + 1
+                        ):
+                            return False
 
-                        # If the identifier comes after a pipe, it's likely a temporary
-                        temp_after_pipe = False
-                        for j in range(len(block_tokens) - 1, -1, -1):
-                            if block_tokens[j].type == TokenType.IDENTIFIER:
-                                continue
-                            elif block_tokens[j].type == TokenType.PIPE:
-                                temp_after_pipe = True
-                                break
-                            else:
-                                break
+                    # Even pipe count: binary operator context
+                    if len(block_tokens) > 0:
+                        return self._is_expression_receiver(block_tokens[-1])
+                    return False
 
-                        if temp_after_pipe:
-                            return False  # This | closes temporaries
-
-                    break
-
-        # If not in a block, use general heuristic
-        # General case: odd number of pipes (not in parens) means we're in temporaries
-        all_pipe_count = 0
-        paren_depth_global = 0
-        for t in tokens:
-            if t.type == TokenType.LPAREN:
-                paren_depth_global += 1
-            elif t.type == TokenType.RPAREN:
-                paren_depth_global -= 1
-            elif t.type == TokenType.PIPE and paren_depth_global == 0:
-                all_pipe_count += 1
-
-        if all_pipe_count % 2 == 1:
+        # Method-level temporaries: | temp |
+        pipe_count = sum(1 for t in tokens if t.type == TokenType.PIPE)
+        if pipe_count % 2 == 1:
             return False
 
-        # Look at the last token - if it's a potential receiver, | is binary
-        last_token = tokens[-1]
-        return last_token.type in [
+        # Binary operator if last token can be a receiver
+        return self._is_expression_receiver(tokens[-1])
+
+    def _is_expression_receiver(self, token: Token) -> bool:
+        """Check if token can be a message receiver (left side of binary operator)."""
+        return token.type in [
             TokenType.IDENTIFIER,
             TokenType.NUMBER,
             TokenType.STRING,

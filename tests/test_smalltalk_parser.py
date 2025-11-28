@@ -922,6 +922,39 @@ class TestLexerBitwiseOrContext:
         # Third is binary operator in parentheses
         assert pipe_tokens[2].type == TokenType.BINARY_SELECTOR
 
+    def test_block_parameters_inside_parentheses(self):
+        """Test block parameters are PIPE even when block is inside parentheses.
+
+        This was the bug that caused 17 Soil files to fail validation.
+        Example from Soil: (items select: [ :each | each value isRemoved ])
+        The pipe after :each should be PIPE, not BINARY_SELECTOR.
+        """
+        tokens = self.lexer.tokenize("(items select: [ :each | each value ])")
+
+        # Find all pipe tokens
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 1
+
+        # The pipe after block parameter should be PIPE, not BINARY_SELECTOR
+        assert pipe_tokens[0].type == TokenType.PIPE
+
+    def test_nested_blocks_with_params_in_parens(self):
+        """Test nested blocks with parameters inside parentheses."""
+        tokens = self.lexer.tokenize(
+            "(items do: [ :pragma | (pragma second | all) ifFalse: [ :x | x ] ])"
+        )
+
+        # Find all pipe tokens
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 3
+
+        # First pipe: block parameter separator
+        assert pipe_tokens[0].type == TokenType.PIPE
+        # Second pipe: binary operator inside parentheses
+        assert pipe_tokens[1].type == TokenType.BINARY_SELECTOR
+        # Third pipe: nested block parameter separator
+        assert pipe_tokens[2].type == TokenType.PIPE
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
