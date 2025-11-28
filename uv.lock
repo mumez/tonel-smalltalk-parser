@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 
 [[package]]
@@ -442,7 +442,7 @@ wheels = [
 
 [[package]]
 name = "tonel-smalltalk-parser"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "." }
 
 [package.optional-dependencies]

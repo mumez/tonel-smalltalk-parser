@@ -322,11 +322,19 @@ class SmalltalkLexer:
         """Determine if | should be treated as a binary selector based on context.
 
         Returns True if | should be treated as binary selector, False if it's a pipe.
+
+        Simplified rules:
+        1. After block parameters (:param), first | is parameter terminator (PIPE)
+        2. If parameter terminator | is followed by |, it starts temps (PIPE)
+        3. After temp start |, next | closes temps (PIPE)
+        4. All other | are binary operators (BINARY_SELECTOR)
+
+        Parentheses do NOT affect pipe meaning.
         """
         if not tokens:
             return False
 
-        # Look for the current block context by finding the most recent unmatched [
+        # Check for block context
         bracket_count = 0
         for i in range(len(tokens) - 1, -1, -1):
             token = tokens[i]
@@ -336,20 +344,14 @@ class SmalltalkLexer:
                 bracket_count -= 1
                 if bracket_count < 0:
                     # Found the opening bracket for current block
-                    # Analyze the block content from position i+1 to end
-                    block_start = i + 1
-                    block_tokens = tokens[block_start:]
-
-                    # Parse block structure: [ :param1 :param2 | temp1 temp2 | stmts ]
-                    pos = 0
-                    param_count = 0
-                    pipe_count = 0
+                    block_tokens = tokens[i + 1 :]
 
                     # Count parameters (: followed by identifier)
-                    while pos < len(block_tokens):
+                    param_count = 0
+                    pos = 0
+                    while pos < len(block_tokens) - 1:
                         if (
-                            pos < len(block_tokens) - 1
-                            and block_tokens[pos].type == TokenType.COLON
+                            block_tokens[pos].type == TokenType.COLON
                             and block_tokens[pos + 1].type == TokenType.IDENTIFIER
                         ):
                             param_count += 1
@@ -357,62 +359,76 @@ class SmalltalkLexer:
                         else:
                             break
 
-                    # Count pipes in the block
-                    for bt in block_tokens:
-                        if bt.type == TokenType.PIPE:
-                            pipe_count += 1
+                    # Count pipes already seen
+                    pipe_count = sum(
+                        1 for t in block_tokens if t.type == TokenType.PIPE
+                    )
 
-                    # Decision logic:
-                    # - If we have parameters but no pipes yet, next | separates params
-                    # - If we have one pipe after parameters, we might be in temporaries
-                    # - If odd number of pipes, next | closes temporaries
-                    # - If even pipes and last token is receiver, | is binary
-
+                    # Rule 1: First | after parameters is terminator
                     if param_count > 0 and pipe_count == 0:
-                        # Parameters but no separator yet - this | separates params
                         return False
 
+                    # Rule 2: Handle pipe_count==1 case
+                    # Two scenarios:
+                    # a) [ :param | | temp | ... ] - param terminator then temp
+                    # b) [ | temp | ... ] - temp variable closing
+                    # c) [ :param | expr | expr2 ] - binary operator
+                    if pipe_count == 1:
+                        if param_count == 0:
+                            # Pattern: [ | temp | - closing temp variables
+                            return False
+                        # Pattern with parameters: check if followed by another |
+                        first_pipe_idx = next(
+                            idx
+                            for idx, t in enumerate(block_tokens)
+                            if t.type == TokenType.PIPE
+                        )
+                        if first_pipe_idx + 1 < len(block_tokens):
+                            next_token = block_tokens[first_pipe_idx + 1]
+                            if next_token.type == TokenType.PIPE:
+                                # [ :param | | temp - second | starting temps
+                                return False
+                        # [ :param | expr | - binary operator
+                        return self._is_expression_receiver(block_tokens[-1])
+
+                    # Rule 3: Check for temp closing patterns
+                    # [ | temp | - pipe_count=1 (odd)
+                    # [ :param | | temp | - pipe_count=2 with params
                     if pipe_count % 2 == 1:
-                        # Odd number of pipes means we're in temporaries, | closes them
                         return False
 
-                    # Special case: if we have even pipes and the last token
-                    # is an identifier that could be a temp variable (not followed by
-                    # something that makes it a receiver), treat | as closing temps
-                    if (
-                        pipe_count > 0
-                        and pipe_count % 2 == 0
-                        and len(block_tokens) > 0
-                        and block_tokens[-1].type == TokenType.IDENTIFIER
-                    ):
-                        # Look for pattern: | temp1 temp2 | (temporaries context)
-                        # vs temp1 | temp2 (binary message context)
+                    # Special case: [ :param | | temp |
+                    # pipe_count=2, check if 2nd pipe is immediately after 1st
+                    if param_count > 0 and pipe_count == 2:
+                        # Find first two pipes
+                        pipe_indices = [
+                            i
+                            for i, t in enumerate(block_tokens)
+                            if t.type == TokenType.PIPE
+                        ]
+                        # If 2nd pipe immediately follows 1st, this is temp closing
+                        if (
+                            len(pipe_indices) >= 2
+                            and pipe_indices[1] == pipe_indices[0] + 1
+                        ):
+                            return False
 
-                        # If the identifier comes after a pipe, it's likely a temporary
-                        temp_after_pipe = False
-                        for j in range(len(block_tokens) - 1, -1, -1):
-                            if block_tokens[j].type == TokenType.IDENTIFIER:
-                                continue
-                            elif block_tokens[j].type == TokenType.PIPE:
-                                temp_after_pipe = True
-                                break
-                            else:
-                                break
+                    # Even pipe count: binary operator context
+                    if len(block_tokens) > 0:
+                        return self._is_expression_receiver(block_tokens[-1])
+                    return False
 
-                        if temp_after_pipe:
-                            return False  # This | closes temporaries
-
-                    break
-
-        # If not in a block, use general heuristic
-        # General case: odd number of pipes means we're in temporaries
-        all_pipe_count = sum(1 for t in tokens if t.type == TokenType.PIPE)
-        if all_pipe_count % 2 == 1:
+        # Method-level temporaries: | temp |
+        pipe_count = sum(1 for t in tokens if t.type == TokenType.PIPE)
+        if pipe_count % 2 == 1:
             return False
 
-        # Look at the last token - if it's a potential receiver, | is binary
-        last_token = tokens[-1]
-        return last_token.type in [
+        # Binary operator if last token can be a receiver
+        return self._is_expression_receiver(tokens[-1])
+
+    def _is_expression_receiver(self, token: Token) -> bool:
+        """Check if token can be a message receiver (left side of binary operator)."""
+        return token.type in [
             TokenType.IDENTIFIER,
             TokenType.NUMBER,
             TokenType.STRING,
@@ -905,54 +921,92 @@ class SmalltalkParser(BaseParser):
         self._consume(TokenType.RBRACE)
         return DynamicArray(expressions)
 
+    def _parse_literal_array_element(self) -> tuple[bool, Any]:
+        """Parse a single literal array element.
+
+        Returns:
+            tuple: (success, element) where success is True if an element was parsed
+
+        """
+        if self._match(TokenType.NUMBER):
+            value = self._advance().value
+            return (True, self._parse_number_literal(value))
+        elif self._match(TokenType.STRING):
+            value = self._advance().value[1:-1].replace("''", "'")
+            return (True, value)
+        elif self._match(TokenType.CHARACTER):
+            value = self._advance().value[1]
+            return (True, value)
+        elif self._match(TokenType.SYMBOL):
+            value = self._advance().value[1:]
+            if value.startswith("'") and value.endswith("'"):
+                value = value[1:-1].replace("''", "'")
+            return (True, value)
+        elif self._match(TokenType.IDENTIFIER) or self._match(
+            TokenType.BINARY_SELECTOR
+        ):
+            return (True, self._advance().value)
+        elif self._match(TokenType.CASCADE):
+            # Semicolon can appear in literal arrays as a symbol
+            self._advance()
+            return (True, ";")
+        elif self._match(TokenType.TRUE):
+            self._advance()
+            return (True, True)
+        elif self._match(TokenType.FALSE):
+            self._advance()
+            return (True, False)
+        elif self._match(TokenType.NIL):
+            self._advance()
+            return (True, None)
+        elif self._match(TokenType.SELF):
+            self._advance()
+            return (True, "self")
+        elif self._match(TokenType.SUPER):
+            self._advance()
+            return (True, "super")
+        elif self._match(TokenType.THISCONTEXT):
+            self._advance()
+            return (True, "thisContext")
+        else:
+            return (False, None)
+
     def _parse_literal_array(self) -> LiteralArray:
         """Parse literal array: #( elements )."""
         self._consume(TokenType.LPARRAY)
 
         elements = []
         while not self._match(TokenType.RPAREN, TokenType.EOF):
-            if self._match(TokenType.NUMBER):
-                value = self._advance().value
-                elements.append(self._parse_number_literal(value))
-            elif self._match(TokenType.STRING):
-                value = self._advance().value[1:-1].replace("''", "'")
-                elements.append(value)
-            elif self._match(TokenType.CHARACTER):
-                value = self._advance().value[1]  # Remove $
-                elements.append(value)
-            elif self._match(TokenType.SYMBOL):
-                value = self._advance().value[1:]
-                if value.startswith("'") and value.endswith("'"):
-                    value = value[1:-1].replace("''", "'")
-                elements.append(value)
-            elif self._match(TokenType.IDENTIFIER) or self._match(
-                TokenType.BINARY_SELECTOR
-            ):
-                elements.append(self._advance().value)
-            elif self._match(TokenType.LPARRAY):
-                # Nested literal array
+            if self._match(TokenType.LPARRAY):
+                # Nested literal array #(...)
                 nested = self._parse_literal_array()
                 elements.append(nested.elements)
-            elif self._match(TokenType.TRUE):
-                self._advance()
-                elements.append(True)
-            elif self._match(TokenType.FALSE):
-                self._advance()
-                elements.append(False)
-            elif self._match(TokenType.NIL):
-                self._advance()
-                elements.append(None)
-            elif self._match(TokenType.SELF):
-                self._advance()
-                elements.append("self")
-            elif self._match(TokenType.SUPER):
-                self._advance()
-                elements.append("super")
-            elif self._match(TokenType.THISCONTEXT):
-                self._advance()
-                elements.append("thisContext")
+            elif self._match(TokenType.LPAREN):
+                # Regular parenthesis in literal array is treated as nested array
+                # e.g., #(a b(c d)) becomes #(#a #b #(#c #d))
+                self._advance()  # consume '('
+                nested_elements = []
+                while not self._match(TokenType.RPAREN, TokenType.EOF):
+                    success, element = self._parse_literal_array_element()
+                    if success:
+                        nested_elements.append(element)
+                    elif self._match(TokenType.LPAREN):
+                        # Recursively handle nested parentheses - not yet supported
+                        token = self._current_token()
+                        raise SyntaxError(
+                            f"Line {token.line}, Column {token.column}: "
+                            "Nested parentheses in literal arrays not fully supported"
+                        )
+                    else:
+                        break
+                self._consume(TokenType.RPAREN)
+                elements.append(nested_elements)
             else:
-                break
+                success, element = self._parse_literal_array_element()
+                if success:
+                    elements.append(element)
+                else:
+                    break
 
         self._consume(TokenType.RPAREN)
         return LiteralArray(elements)

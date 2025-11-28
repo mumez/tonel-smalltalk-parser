@@ -16,8 +16,12 @@ BNF grammar definitions.
 - **Validation Methods**: Built-in validation for all parsers with file and string
   support
 - **Precise Bracket Matching**: Correctly handles nested blocks and string literals
+- **Pipe Operator Disambiguation**: Accurately distinguishes `|` as pipe (parameter
+  terminator, temporary delimiter) vs binary operator (bitwise OR) based on
+  position-based rules
 - **Type Annotations**: Full type support for static analysis
-- **Comprehensive Testing**: Extensive test suite covering real-world scenarios
+- **Comprehensive Testing**: Extensive test suite covering real-world scenarios,
+  validated against 223 real-world Soil project files
 
 ## Grammar Specification
 
@@ -225,6 +229,53 @@ validate-tonel InvalidFile.st
 # >>> invalid tonel content
 # Exit code: 1
 ```
+
+## Parsing Challenges and Solutions
+
+This parser addresses two critical challenges in Smalltalk parsing:
+
+### 1. Bracket Boundary Detection
+
+The parser must distinguish between `]` characters that close blocks within method
+bodies versus `]` that terminate the method definition itself:
+
+```smalltalk
+Counter >> process [
+    items do: [ :each |
+        result := [ each value ] value.  "inner block close"
+        ^ result                         "method continues"
+    ]                                    "outer block close"
+]                                        "method definition close"
+```
+
+**Solution**: `BracketParser` tracks nested brackets while respecting string literals,
+comments, and character literals.
+
+### 2. Pipe Operator Disambiguation
+
+The `|` character has multiple meanings in Smalltalk:
+
+- **PIPE**: Parameter terminator and temporary variable delimiter
+- **BINARY_SELECTOR**: Binary operator (bitwise OR)
+
+**Examples**:
+
+```smalltalk
+[ :param | expr ]              "| is parameter terminator"
+[ | temp | expr ]              "| are temp variable delimiters"
+[ :param | | temp | expr ]    "first | terminates params, next pair delimits temps"
+[ :x | (a | b) ]               "second | is binary OR operator"
+```
+
+**Solution**: Position-based rules that ignore parentheses:
+
+1. After block parameters (`:param`), first `|` is parameter terminator
+1. If parameter terminator `|` is followed by `|`, it starts temps
+1. After temp start `|`, next `|` closes temps
+1. All other `|` are binary operators
+
+Key insight: Parentheses are irrelevant - only position within block/method body
+matters.
 
 ## Development
 

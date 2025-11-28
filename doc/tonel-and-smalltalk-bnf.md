@@ -76,6 +76,8 @@ formally defines the syntactic structure of the Tonel format.
 
 <!-- Binary selector: one or more special characters -->
 <!-- Note: Multi-character operators like <=, >=, ~= are recognized as single tokens -->
+<!-- Note: The | character is context-sensitive - it can be a binary operator (bitwise OR)
+     or a delimiter for temporary variables/block parameters depending on context -->
 <binarySelector> ::= <binaryChar>+
 
 <!-- Characters usable in binary operators -->
@@ -99,6 +101,33 @@ formally defines the syntactic structure of the Tonel format.
 
 <!-- Dictionary value: primitive or composite object -->
 <mapValue> ::= <primitive> | <object> | <list> | <association> | <map> | <reference>
+
+<!-- STON Object: class-tagged structure with list or map contents -->
+<object> ::= <classTag> <whitespace>? ( <list> | <map> )
+
+<!-- Class tag: uppercase identifier for class names -->
+<classTag> ::= <upperLetter> <letterOrDigitOrUnderscore>*
+
+<!-- STON List: ordered sequence in square brackets -->
+<list> ::= "[" <whitespace>? <listElement>? ( "," <whitespace>? <listElement> )* <whitespace>? "]"
+
+<!-- List element: any STON value type -->
+<listElement> ::= <primitive> | <object> | <list> | <association> | <map> | <reference>
+
+<!-- STON Association: key-value pair -->
+<association> ::= <associationKey> <whitespace>? ":" <whitespace>? <associationValue>
+
+<!-- Association key: any STON value type -->
+<associationKey> ::= <primitive> | <symbol> | <reference>
+
+<!-- Association value: any STON value type -->
+<associationValue> ::= <primitive> | <object> | <list> | <association> | <map> | <reference>
+
+<!-- STON Map: unordered collection of associations in braces -->
+<map> ::= "{" <whitespace>? <mapEntry>? ( "," <whitespace>? <mapEntry> )* <whitespace>? "}"
+
+<!-- Reference: ordinal reference to previously encountered object -->
+<reference> ::= "@" <digit>+
 
 <!-- Symbol: identifier prefixed with # -->
 <symbol> ::= <simpleSymbol> | <keywordSymbol> | <binarySymbol> | <genericSymbol>
@@ -287,7 +316,11 @@ formally defines the syntactic structure of the Tonel format.
 
 <literalArrayRest> ::= <whitespace>? ( <literalArrayItem> <whitespace>? )* ")"
 
-<literalArrayItem> ::= <parsetimeLiteral> | <literalArray> | <identifier> | <binarySelector>
+<literalArrayItem> ::= <parsetimeLiteral> | <literalArray> | <nestedArrayByParens> | <identifier> | <binarySelector> | ";"
+
+<!-- Nested array created by regular parentheses within literal array context -->
+<!-- Example: #(a b(c d)) is equivalent to #(a b #(c d)) -->
+<nestedArrayByParens> ::= "(" <whitespace>? ( <literalArrayItem> <whitespace>? )* ")"
 
 <!-- Byte array: array of integers 0-255 -->
 <byteArray> ::= "#[" <whitespace>? ( <byteValue> <whitespace>? )* "]"
@@ -339,7 +372,37 @@ The parser implementation includes several extensions beyond the basic BNF:
 
    - Block parameter separator: `[ :x | x + 1 ]`
    - Temporary variable delimiter: `[ | temp | temp := 42 ]`
-   - Binary message operator: `a | b`
+   - Binary message operator (bitwise OR): `a | b`
+   - **Parentheses Context Rule**: Inside parentheses, `|` is always treated as a binary
+     operator, never as a temp variable delimiter
+     - `(expr1 | expr2)` - bitwise OR operator
+     - `(pragma arguments second | all)` - binary message send
+     - `((condition1) | (condition2))` - logical OR in conditional expressions
+
+1. **Semicolon in Literal Arrays**: Semicolons can appear as elements in literal arrays
+
+   - Treated as symbols within array context, not as cascade operators
+   - `#(uint64 internal; uint64 internalHigh;)` - semicolons as array elements
+   - `#(;)` - array containing only a semicolon
+   - `#(1 ; 2 ; 3)` - mixed numeric and semicolon elements
+   - Enables representation of structured data with semicolon delimiters
+
+1. **Parentheses as Nested Arrays**: Regular parentheses in literal arrays create nested
+   arrays
+
+   - Parentheses without `#` prefix automatically create nested literal arrays
+   - `#(a b(c d))` is equivalent to `#(a b #(c d))`
+   - Enables concise syntax for hierarchical data structures
+   - **Comma Support**: Commas are treated as binary selectors, thus valid array
+     elements
+     - `#(a , b)` → array with comma as symbol between elements
+     - `#(void* hFile, uint 0)` → array containing type declarations with commas
+   - **Real-world Use Case**: FFI (Foreign Function Interface) declarations
+     - `#(bool UnlockFileEx(void* hFile, uint nBytes))` - C function signature
+     - Parses as:
+       `['bool', 'UnlockFileEx', ['void', '*', 'hFile', ',', 'uint', 'nBytes']]`
+   - **Recursive Nesting**: Nested parentheses create multi-level array structures
+     - Future enhancement: full support for arbitrary nesting depth
 
 ### ANSI Smalltalk Compatibility
 
@@ -484,6 +547,36 @@ function parseMethodDefinition(input, startPos):
        ^ $]  "character ']'"
    ]
    ```
+
+1. **Pipe operator (`|`) disambiguation**:
+
+   The `|` character has multiple meanings in Smalltalk:
+
+   - **Parameter terminator**: `[ :x | x + 1 ]`
+   - **Temporary variable delimiter**: `[ | temp | temp := 42 ]`
+   - **Binary operator (bitwise OR)**: `a | b`, `(expr1 | expr2)`, `[ :x | (a | b) ]`
+
+   **Position-based rules** (parentheses are irrelevant):
+
+   1. After block parameters (`:param`), first `|` is parameter terminator
+   1. If parameter terminator `|` is followed by `|`, it starts temporaries
+   1. After temp start `|`, next `|` closes temporaries
+   1. All other `|` are binary operators
+
+   ```smalltalk
+   [ :x | x + 1 ]              "| is parameter terminator"
+   [ | temp | temp := 42 ]     "| are temp variable delimiters"
+   [ :x | | temp | temp ]      "first | terminates params, next pair delimits temps"
+   [ :x | (a | b) ]            "second | is binary OR operator"
+   ```
+
+   Implementation strategy:
+
+   - Track position within block/method body (after opening `[`)
+   - Count parameters (`:identifier` patterns)
+   - Count pipes already seen
+   - Apply position-based rules to determine pipe meaning
+   - Key insight: Only position in block/method body matters, not parentheses context
 
 ### Recommended Approach
 

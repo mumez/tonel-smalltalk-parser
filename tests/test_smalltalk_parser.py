@@ -278,6 +278,59 @@ class TestSmalltalkParser:
         assert isinstance(stmt3, LiteralArray)
         assert stmt3.elements == ["aaa", "bbb", "self", "super"]
 
+        # Test literal array with semicolons
+        ast4 = parser.parse("#(uint64 internal; uint64 internalHigh;)")
+        assert len(ast4.statements) == 1
+        stmt4 = ast4.statements[0]
+        assert isinstance(stmt4, LiteralArray)
+        assert stmt4.elements == [
+            "uint64",
+            "internal",
+            ";",
+            "uint64",
+            "internalHigh",
+            ";",
+        ]
+
+        # Test literal array with only semicolons
+        ast5 = parser.parse("#(;)")
+        assert len(ast5.statements) == 1
+        stmt5 = ast5.statements[0]
+        assert isinstance(stmt5, LiteralArray)
+        assert stmt5.elements == [";"]
+
+        # Test literal array with mixed elements and semicolons
+        ast6 = parser.parse("#(1 ; 2 ; 3)")
+        assert len(ast6.statements) == 1
+        stmt6 = ast6.statements[0]
+        assert isinstance(stmt6, LiteralArray)
+        assert stmt6.elements == [1, ";", 2, ";", 3]
+
+        # Test literal array with commas
+        ast7 = parser.parse("#(a , b , c)")
+        assert len(ast7.statements) == 1
+        stmt7 = ast7.statements[0]
+        assert isinstance(stmt7, LiteralArray)
+        assert stmt7.elements == ["a", ",", "b", ",", "c"]
+
+        # Test literal array with parentheses (nested arrays)
+        ast8 = parser.parse("#(a b(c d) e)")
+        assert len(ast8.statements) == 1
+        stmt8 = ast8.statements[0]
+        assert isinstance(stmt8, LiteralArray)
+        assert stmt8.elements == ["a", "b", ["c", "d"], "e"]
+
+        # Test complex nested array with C function signature
+        ast9 = parser.parse("#(bool UnlockFileEx(void* hFile, uint 0))")
+        assert len(ast9.statements) == 1
+        stmt9 = ast9.statements[0]
+        assert isinstance(stmt9, LiteralArray)
+        assert stmt9.elements == [
+            "bool",
+            "UnlockFileEx",
+            ["void", "*", "hFile", ",", "uint", 0],
+        ]
+
     def test_dynamic_array(self):
         """Test parsing dynamic array."""
         parser = SmalltalkParser()
@@ -617,6 +670,290 @@ class TestSmalltalkParserValidation:
         assert self.parser.validate("^ x := y := z := 42.")[0] is True
         assert self.parser.validate("^ result := temp := self compute")[0] is True
         assert self.parser.validate("^ result := temp := self compute.")[0] is True
+
+
+class TestBitwiseOrInParentheses:
+    """Test cases for bitwise OR operator in parenthesized expressions.
+
+    These tests validate Issue 1 from fix-todo.md:
+    Parser should treat | as binary operator inside parentheses,
+    not as temporary variable delimiter.
+    """
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.parser = SmalltalkParser()
+
+    def test_simple_bitwise_or_in_parens(self):
+        """Test simple bitwise OR in parentheses."""
+        # Basic case: (expr1 | expr2)
+        ast = self.parser.parse("(a | b)")
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        # The expression should be parsed as a binary message
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "|"
+        assert isinstance(stmt.receiver, Variable)
+        assert stmt.receiver.name == "a"
+        assert len(stmt.arguments) == 1
+        assert isinstance(stmt.arguments[0], Variable)
+        assert stmt.arguments[0].name == "b"
+
+    def test_bitwise_or_in_if_condition(self):
+        """Test bitwise OR in conditional expression (ifTrue:ifFalse:)."""
+        # From Soil-Core/SoilApplicationMigration.class.st line 18
+        code = "(pragma arguments second | all) ifFalse: [ stop := true ]"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        # Should parse as message send with parenthesized receiver
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "ifFalse:"
+
+    def test_bitwise_or_in_return_statement(self):
+        """Test bitwise OR in return statement."""
+        # From Soil-Core/SoilApplicationMigration.class.st line 69
+        code = "^ (pragma arguments second | all)"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        # Should parse as return with parenthesized binary message
+        stmt = ast.statements[0]
+        assert isinstance(stmt, Return)
+        assert isinstance(stmt.expression, MessageSend)
+        assert stmt.expression.selector == "|"
+
+    def test_complex_bitwise_or_with_class_comparison(self):
+        """Test bitwise OR with class equality checks."""
+        # From Soil-Core/SoilRestoringIndexIterator.class.st line 66
+        code = "((each class == SoilAddKeyEntry) | (each class = SoilRemoveKeyEntry))"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        # The outer parentheses contain a binary message |
+        # with two parenthesized comparisons as operands
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "|"
+
+    def test_bitwise_or_in_iftrue_block(self):
+        """Test bitwise OR in ifTrue: message."""
+        code = (
+            "((each class == SoilAddKeyEntry) | (each class = SoilRemoveKeyEntry)) "
+            "ifTrue: [ entries add: each ]"
+        )
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        # Should parse as message send with parenthesized receiver
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "ifTrue:"
+
+    def test_nested_parentheses_with_bitwise_or(self):
+        """Test nested parentheses with bitwise OR."""
+        code = "((a | b) & (c | d))"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        # Outer level should be & binary message
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "&"
+
+        # Both receiver and argument should be | messages
+        assert isinstance(stmt.receiver, MessageSend)
+        assert stmt.receiver.selector == "|"
+        assert isinstance(stmt.arguments[0], MessageSend)
+        assert stmt.arguments[0].selector == "|"
+
+    def test_bitwise_or_vs_temp_variables(self):
+        """Test distinction between | as operator vs temp variable delimiter."""
+        # Temporary variables
+        ast1 = self.parser.parse("| temp | temp := 1")
+        assert isinstance(ast1.temporaries, TemporaryVariables)
+        assert ast1.temporaries.variables == ["temp"]
+
+        # Bitwise OR in parentheses
+        ast2 = self.parser.parse("(a | b) ifTrue: [ ^ true ]")
+        assert ast2.temporaries is None
+        stmt = ast2.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "ifTrue:"
+        # The receiver should be a binary message with | selector
+        assert isinstance(stmt.receiver, MessageSend)
+        assert stmt.receiver.selector == "|"
+
+    def test_bitwise_or_with_message_sends(self):
+        """Test bitwise OR with message sends as operands."""
+        code = "(self isActive | other isReady)"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "|"
+
+        # Receiver should be message send: self isActive
+        assert isinstance(stmt.receiver, MessageSend)
+        assert stmt.receiver.selector == "isActive"
+
+        # Argument should be message send: other isReady
+        assert isinstance(stmt.arguments[0], MessageSend)
+        assert stmt.arguments[0].selector == "isReady"
+
+    def test_multiple_bitwise_or_in_parens(self):
+        """Test multiple bitwise OR operations in parentheses."""
+        code = "(a | b | c)"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        # Should parse as left-associative: ((a | b) | c)
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "|"
+
+        # The receiver should also be a | message
+        assert isinstance(stmt.receiver, MessageSend)
+        assert stmt.receiver.selector == "|"
+
+    def test_bitwise_or_with_literals(self):
+        """Test bitwise OR with literal values."""
+        code = "(true | false)"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        stmt = ast.statements[0]
+        assert isinstance(stmt, MessageSend)
+        assert stmt.selector == "|"
+        assert isinstance(stmt.receiver, Literal)
+        assert stmt.receiver.value is True
+        assert isinstance(stmt.arguments[0], Literal)
+        assert stmt.arguments[0].value is False
+
+    def test_block_with_temps_and_bitwise_or(self):
+        """Test block with temp variables followed by bitwise OR in parens."""
+        code = "[ | temp | (temp | other) ifTrue: [ ^ true ] ]"
+        ast = self.parser.parse(code)
+
+        assert isinstance(ast, SmalltalkSequence)
+        assert len(ast.statements) == 1
+
+        stmt = ast.statements[0]
+        assert isinstance(stmt, Block)
+        assert stmt.body is not None
+        assert isinstance(stmt.body.temporaries, TemporaryVariables)
+        assert stmt.body.temporaries.variables == ["temp"]
+
+        # The body statement should be ifTrue: with bitwise OR receiver
+        body_stmt = stmt.body.statements[0]
+        assert isinstance(body_stmt, MessageSend)
+        assert body_stmt.selector == "ifTrue:"
+        assert isinstance(body_stmt.receiver, MessageSend)
+        assert body_stmt.receiver.selector == "|"
+
+
+class TestLexerBitwiseOrContext:
+    """Test the lexer's _is_binary_context method for | operator."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.lexer = SmalltalkLexer()
+
+    def test_pipe_in_parentheses_is_binary(self):
+        """Test that | inside parentheses is treated as binary operator."""
+        tokens = self.lexer.tokenize("(a | b)")
+
+        # Find the pipe token
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 1
+        assert pipe_tokens[0].type == TokenType.BINARY_SELECTOR
+
+    def test_pipe_for_temps_is_not_binary(self):
+        """Test that | for temp variables is not binary operator."""
+        tokens = self.lexer.tokenize("| temp |")
+
+        # Find the pipe tokens
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 2
+        assert pipe_tokens[0].type == TokenType.PIPE
+        assert pipe_tokens[1].type == TokenType.PIPE
+
+    def test_nested_parens_with_pipe(self):
+        """Test nested parentheses with pipe operator."""
+        tokens = self.lexer.tokenize("((a | b) & c)")
+
+        # Find the pipe token
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 1
+        assert pipe_tokens[0].type == TokenType.BINARY_SELECTOR
+
+    def test_block_with_temps_and_paren_pipe(self):
+        """Test block with temps followed by parenthesized pipe."""
+        tokens = self.lexer.tokenize("[ | temp | (temp | other) ]")
+
+        # Find all pipe tokens
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 3
+
+        # First two are for temp variables
+        assert pipe_tokens[0].type == TokenType.PIPE
+        assert pipe_tokens[1].type == TokenType.PIPE
+
+        # Third is binary operator in parentheses
+        assert pipe_tokens[2].type == TokenType.BINARY_SELECTOR
+
+    def test_block_parameters_inside_parentheses(self):
+        """Test block parameters are PIPE even when block is inside parentheses.
+
+        This was the bug that caused 17 Soil files to fail validation.
+        Example from Soil: (items select: [ :each | each value isRemoved ])
+        The pipe after :each should be PIPE, not BINARY_SELECTOR.
+        """
+        tokens = self.lexer.tokenize("(items select: [ :each | each value ])")
+
+        # Find all pipe tokens
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 1
+
+        # The pipe after block parameter should be PIPE, not BINARY_SELECTOR
+        assert pipe_tokens[0].type == TokenType.PIPE
+
+    def test_nested_blocks_with_params_in_parens(self):
+        """Test nested blocks with parameters inside parentheses."""
+        tokens = self.lexer.tokenize(
+            "(items do: [ :pragma | (pragma second | all) ifFalse: [ :x | x ] ])"
+        )
+
+        # Find all pipe tokens
+        pipe_tokens = [t for t in tokens if t.value == "|"]
+        assert len(pipe_tokens) == 3
+
+        # First pipe: block parameter separator
+        assert pipe_tokens[0].type == TokenType.PIPE
+        # Second pipe: binary operator inside parentheses
+        assert pipe_tokens[1].type == TokenType.BINARY_SELECTOR
+        # Third pipe: nested block parameter separator
+        assert pipe_tokens[2].type == TokenType.PIPE
 
 
 if __name__ == "__main__":
