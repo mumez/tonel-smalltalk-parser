@@ -106,9 +106,7 @@ class TonelParser(BaseParser):
 
             try:
                 # Extract method body using precise bracket parsing
-                body, end_pos = self.bracket_parser.extract_method_body(
-                    content, bracket_pos
-                )
+                body, _ = self.bracket_parser.extract_method_body(content, bracket_pos)
 
                 metadata = None
                 if metadata_str:
