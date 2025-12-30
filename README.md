@@ -293,8 +293,9 @@ lint-tonel src/MyPackage/
 
 The linter checks for:
 
-- **Class Prefix**: Warns if class names lack a 2+ character uppercase prefix (e.g.,
-  `ST`)
+- **Class Prefix**: Warns if class names lack a 2+ character prefix (e.g., `ST`, `Zn`,
+  `MC`). Accepts both consecutive uppercase letters (`STClass`) and
+  uppercase-lowercase-uppercase patterns (`ZnServer`)
 - **Instance Variable Count**: Warns when classes have more than 10 instance variables
 - **Method Length**: Warns when methods exceed 15 lines (40 for special categories like
   testing/initialization), errors at 24+ lines
