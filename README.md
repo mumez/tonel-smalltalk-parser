@@ -254,10 +254,10 @@ lint-tonel --help
 
 ```bash
 # Lint a file with issues
-lint-tonel MyClass.st
+lint-tonel ClassA.st
 # Output:
-# ⚠ MyClass.st
-#   ⚠️  No class prefix: MyClass (consider adding project prefix)
+# ⚠ ClassA.st
+#   ⚠️  No class prefix: ClassA (consider adding project prefix)
 #   ⚠️  Method 'processData' long: 18 lines (recommended: 15)
 #   ⚠️  Direct access to 'data' in 'processData' (use self data)
 #
