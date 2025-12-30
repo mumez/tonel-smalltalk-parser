@@ -13,6 +13,8 @@ BNF grammar definitions.
   syntax
 - **Full Validation Parser**: Combined parser that validates both Tonel structure and
   Smalltalk method body syntax
+- **Tonel Linter**: Code quality checker for Smalltalk best practices (class prefixes,
+  method length, instance variable access patterns)
 - **Validation Methods**: Built-in validation for all parsers with file and string
   support
 - **Precise Bracket Matching**: Correctly handles nested blocks and string literals
@@ -23,12 +25,12 @@ BNF grammar definitions.
 - **Comprehensive Testing**: Extensive test suite covering real-world scenarios,
   validated against 223 real-world Soil project files
 
-## Grammar Specification
+## Documentation
 
-The complete BNF grammar specification is available in:
-
-- [Tonel & Smalltalk BNF Grammar](doc/tonel-and-smalltalk-bnf.md) - Comprehensive
+- [Tonel & Smalltalk BNF Grammar](doc/tonel-and-smalltalk-bnf.md) - Comprehensive BNF
   grammar definition with implementation notes
+- [Parsing Challenges and Solutions](doc/parsing-challenges.md) - Detailed explanation
+  of bracket boundary detection and pipe operator disambiguation
 
 ## Installation
 
@@ -144,7 +146,8 @@ parser = TonelFullParser()
 # 1. Tonel file structure and metadata
 # 2. Each method's Smalltalk syntax
 result = parser.parse(tonel_content)  # Raises SyntaxError if invalid Smalltalk
-is_valid, error_info = parser.validate(tonel_content)  # Returns (False, error_info) if either is invalid
+# Returns (False, error_info) if either is invalid
+is_valid, error_info = parser.validate(tonel_content)
 
 # Parse from file with full validation
 result = parser.parse_from_file("complete_example.st")
@@ -192,10 +195,12 @@ print(f"Method body contains: {len(method.body.split())} tokens")
 
 ## Command Line Interface
 
-The package provides a command-line tool for validating Tonel files:
+The package provides two command-line tools:
+
+### Validation Tool
 
 ```bash
-# Install the package to get the CLI command
+# Install the package to get the CLI commands
 pip install tonel-smalltalk-parser
 
 # Validate a Tonel file (checks structure + Smalltalk syntax)
@@ -211,7 +216,7 @@ validate-tonel --help
 validate-tonel --version
 ```
 
-### CLI Examples
+#### Validation Examples
 
 ```bash
 # Validate a complete Tonel file
@@ -230,52 +235,77 @@ validate-tonel InvalidFile.st
 # Exit code: 1
 ```
 
-## Parsing Challenges and Solutions
+### Linting Tool
 
-This parser addresses two critical challenges in Smalltalk parsing:
+Check Tonel files for Smalltalk best practices and code quality issues:
 
-### 1. Bracket Boundary Detection
+```bash
+# Lint a single file
+lint-tonel path/to/file.st
 
-The parser must distinguish between `]` characters that close blocks within method
-bodies versus `]` that terminate the method definition itself:
+# Lint all .st files in a directory
+lint-tonel path/to/package/
 
-```smalltalk
-Counter >> process [
-    items do: [ :each |
-        result := [ each value ] value.  "inner block close"
-        ^ result                         "method continues"
-    ]                                    "outer block close"
-]                                        "method definition close"
+# Show help
+lint-tonel --help
 ```
 
-**Solution**: `BracketParser` tracks nested brackets while respecting string literals,
-comments, and character literals.
+#### Linting Examples
 
-### 2. Pipe Operator Disambiguation
+```bash
+# Lint a file with issues
+lint-tonel MyClass.st
+# Output:
+# ⚠ MyClass.st
+#   ⚠️  No class prefix: MyClass (consider adding project prefix)
+#   ⚠️  Method 'processData' long: 18 lines (recommended: 15)
+#   ⚠️  Direct access to 'data' in 'processData' (use self data)
+#
+# ─────────────────────────────────
+# Summary:
+#   Files analyzed: 1
+#   Warnings: 3
+#   Errors: 0
+#
+# ⚠️  Warnings found - review recommended
+# Exit code: 1
 
-The `|` character has multiple meanings in Smalltalk:
-
-- **PIPE**: Parameter terminator and temporary variable delimiter
-- **BINARY_SELECTOR**: Binary operator (bitwise OR)
-
-**Examples**:
-
-```smalltalk
-[ :param | expr ]              "| is parameter terminator"
-[ | temp | expr ]              "| are temp variable delimiters"
-[ :param | | temp | expr ]    "first | terminates params, next pair delimits temps"
-[ :x | (a | b) ]               "second | is binary OR operator"
+# Lint a directory
+lint-tonel src/MyPackage/
+# Output:
+# Linting Tonel files in src/MyPackage/
+#
+# ✓ STGoodClass.st
+# ⚠ STProblematicClass.st
+#   ❌ Method 'veryLongMethod' too long: 30 lines (limit: 15)
+#
+# ─────────────────────────────────
+# Summary:
+#   Files analyzed: 2
+#   Warnings: 0
+#   Errors: 1
+#
+# ❌ Errors found - consider fixing before import
+# Exit code: 2
 ```
 
-**Solution**: Position-based rules that ignore parentheses:
+#### Linting Rules
 
-1. After block parameters (`:param`), first `|` is parameter terminator
-1. If parameter terminator `|` is followed by `|`, it starts temps
-1. After temp start `|`, next `|` closes temps
-1. All other `|` are binary operators
+The linter checks for:
 
-Key insight: Parentheses are irrelevant - only position within block/method body
-matters.
+- **Class Prefix**: Warns if class names lack a 2+ character uppercase prefix (e.g.,
+  `ST`)
+- **Instance Variable Count**: Warns when classes have more than 10 instance variables
+- **Method Length**: Warns when methods exceed 15 lines (40 for special categories like
+  testing/initialization), errors at 24+ lines
+- **Direct Instance Variable Access**: Warns when methods directly access instance
+  variables instead of using accessors (except in accessor and initialization methods)
+
+Exit codes:
+
+- `0`: No issues found
+- `1`: Warnings found
+- `2`: Errors found
 
 ## Development
 

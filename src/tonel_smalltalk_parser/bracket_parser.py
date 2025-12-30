@@ -184,19 +184,19 @@ def test_bracket_parser():
     # Test 1: Simple method
     content1 = "Counter >> value [\n    ^ value\n]"
     start = content1.find("[")
-    body, end = parser.extract_method_body(content1, start)
+    body, _ = parser.extract_method_body(content1, start)
     print(f"Test 1: {body!r}")
 
     # Test 2: Nested blocks
     content2 = "TestClass >> complexBlock [\n    ^ [ [ 1 + 2 ] value ] value\n]"
     start = content2.find("[")
-    body, end = parser.extract_method_body(content2, start)
+    body, _ = parser.extract_method_body(content2, start)
     print(f"Test 2: {body!r}")
 
     # Test 3: String with bracket
     content3 = "TestClass >> stringWithBrackets [\n    ^ 'string with ] bracket'\n]"
     start = content3.find("[")
-    body, end = parser.extract_method_body(content3, start)
+    body, _ = parser.extract_method_body(content3, start)
     print(f"Test 3: {body!r}")
 
     # Test 4: Comment with bracket
@@ -205,13 +205,13 @@ def test_bracket_parser():
         '"comment with ] bracket"\n    ^ self\n]'
     )
     start = content4.find("[")
-    body, end = parser.extract_method_body(content4, start)
+    body, _ = parser.extract_method_body(content4, start)
     print(f"Test 4: {body!r}")
 
     # Test 5: Character literal
     content5 = "TestClass >> charLiteral [\n    ^ $]\n]"
     start = content5.find("[")
-    body, end = parser.extract_method_body(content5, start)
+    body, _ = parser.extract_method_body(content5, start)
     print(f"Test 5: {body!r}")
 
 
