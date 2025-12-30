@@ -34,7 +34,7 @@ class TestTonelLinter:
         assert linter.errors == 0
         assert hasattr(linter, "parser")
 
-    def test_lint_file_with_valid_class(self):
+    def test_lint_from_file_with_valid_class(self):
         """Test linting a valid class file."""
         # Create a simple test file that should pass all checks
         content = """Class {
@@ -63,7 +63,7 @@ STTestClass >> var1: aValue [
 
             try:
                 linter = TonelLinter()
-                issues = linter.lint_file(Path(f.name))
+                issues = linter.lint_from_file(Path(f.name))
 
                 # Should have no issues for a well-formed class
                 # Note: accessor methods are allowed to access instance
@@ -71,6 +71,29 @@ STTestClass >> var1: aValue [
                 assert len(issues) == 0
             finally:
                 Path(f.name).unlink()
+
+    def test_lint_with_valid_content(self):
+        """Test linting valid Tonel content."""
+        content = """Class {
+    #name : #STTestClass,
+    #superclass : #Object,
+    #instVars : [
+        'var1'
+    ],
+    #category : #Test
+}
+
+{ #category : #accessing }
+STTestClass >> var1 [
+    ^ self var1
+]
+"""
+
+        linter = TonelLinter()
+        issues = linter.lint(content)
+
+        # Should have no issues for a well-formed class
+        assert len(issues) == 0
 
     def test_check_class_prefix(self):
         """Test class prefix checking."""
