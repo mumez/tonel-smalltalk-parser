@@ -48,7 +48,7 @@ def main():
     print()
 
     for file_path in sorted(files):
-        issues = linter.lint_file(file_path)
+        issues = linter.lint_from_file(file_path)
         linter.print_issues(file_path, issues)
         files_analyzed += 1
 

@@ -28,15 +28,19 @@ class TonelLinter:
         self.warnings = 0
         self.errors = 0
 
-    def lint_file(self, file_path: Path) -> list[LintIssue]:
-        """Lint a single Tonel file and return list of issues."""
+    def lint(self, content: str) -> list[LintIssue]:
+        """Lint Tonel content and return list of issues.
+
+        Args:
+            content: The Tonel file content as a string
+
+        Returns:
+            list[LintIssue]: List of linting issues found
+
+        """
         issues = []
 
         try:
-            # Parse the file
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read()
-
             tonel_file = self.parser.parse(content)
 
             # Run lint checks
@@ -45,9 +49,26 @@ class TonelLinter:
             issues.extend(self._check_methods(tonel_file))
 
         except Exception as e:
-            issues.append(LintIssue("error", f"Failed to parse file: {e}"))
+            issues.append(LintIssue("error", f"Failed to parse content: {e}"))
 
         return issues
+
+    def lint_from_file(self, file_path: Path) -> list[LintIssue]:
+        """Lint a Tonel file and return list of issues.
+
+        Args:
+            file_path: Path to the Tonel file
+
+        Returns:
+            list[LintIssue]: List of linting issues found
+
+        """
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                content = f.read()
+            return self.lint(content)
+        except Exception as e:
+            return [LintIssue("error", f"Failed to read file: {e}")]
 
     def _check_class_prefix(self, tonel_file: TonelFile) -> list[LintIssue]:
         """Check if class has appropriate prefix."""
