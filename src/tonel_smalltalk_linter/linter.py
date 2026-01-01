@@ -12,12 +12,30 @@ from tonel_smalltalk_parser.tonel_parser import MethodDefinition, TonelFile
 
 
 class LintIssue:
-    """Represents a linting issue."""
+    """Represents a linting issue.
 
-    def __init__(self, severity: str, message: str, line_number: int | None = None):
-        self.severity = severity  # 'warning' or 'error'
+    Attributes:
+        severity: 'warning' or 'error'
+        message: Description of the issue
+        class_name: Name of the class where issue was found (optional)
+        selector: Method selector where issue was found (optional)
+        is_class_method: True if issue is in a class method (optional)
+
+    """
+
+    def __init__(
+        self,
+        severity: str,
+        message: str,
+        class_name: str | None = None,
+        selector: str | None = None,
+        is_class_method: bool | None = None,
+    ):
+        self.severity = severity
         self.message = message
-        self.line_number = line_number
+        self.class_name = class_name
+        self.selector = selector
+        self.is_class_method = is_class_method
 
 
 class TonelLinter:
@@ -96,7 +114,8 @@ class TonelLinter:
             issues.append(
                 LintIssue(
                     "warning",
-                    f"No class prefix: {class_name} (consider adding project prefix)",
+                    "No class prefix (consider adding project prefix)",
+                    class_name=class_name,
                 )
             )
 
@@ -106,6 +125,7 @@ class TonelLinter:
         """Check instance variable count."""
         issues = []
 
+        class_name = tonel_file.class_definition.metadata.get("name", "").strip("#")
         inst_vars = tonel_file.class_definition.metadata.get("instVars", [])
         if len(inst_vars) > 10:
             issues.append(
@@ -115,6 +135,7 @@ class TonelLinter:
                         f"Too many instance variables: {len(inst_vars)} "
                         "(consider splitting responsibilities)"
                     ),
+                    class_name=class_name,
                 )
             )
 
@@ -158,20 +179,20 @@ class TonelLinter:
                 issues.append(
                     LintIssue(
                         "error",
-                        (
-                            f"Method '{method.selector}' too long: "
-                            f"{body_lines} lines (limit: {limit})"
-                        ),
+                        f"Method too long: {body_lines} lines (limit: {limit})",
+                        class_name=method.class_name,
+                        selector=method.selector,
+                        is_class_method=method.is_class_method,
                     )
                 )
             else:
                 issues.append(
                     LintIssue(
                         "warning",
-                        (
-                            f"Method '{method.selector}' long: "
-                            f"{body_lines} lines (recommended: {limit})"
-                        ),
+                        f"Method long: {body_lines} lines (recommended: {limit})",
+                        class_name=method.class_name,
+                        selector=method.selector,
+                        is_class_method=method.is_class_method,
                     )
                 )
 
@@ -208,10 +229,10 @@ class TonelLinter:
                     issues.append(
                         LintIssue(
                             "warning",
-                            (
-                                f"Direct access to '{var}' in "
-                                f"'{method.selector}' (use self {var})"
-                            ),
+                            f"Direct access to '{var}' (use self {var})",
+                            class_name=method.class_name,
+                            selector=method.selector,
+                            is_class_method=method.is_class_method,
                         )
                     )
                     break
@@ -227,11 +248,22 @@ class TonelLinter:
         print(f"⚠ {file_path.name}")
 
         for issue in issues:
+            # Build location string
+            location = ""
+            if issue.class_name:
+                location = issue.class_name
+                if issue.selector:
+                    method_prefix = " class>>" if issue.is_class_method else ">>"
+                    location += f"{method_prefix}{issue.selector}"
+                location = f"[{location}] "
+
+            message = f"{location}{issue.message}"
+
             if issue.severity == "error":
-                print(f"  ❌ {issue.message}")
+                print(f"  ❌ {message}")
                 self.errors += 1
             else:
-                print(f"  ⚠️  {issue.message}")
+                print(f"  ⚠️  {message}")
                 self.warnings += 1
 
         print()

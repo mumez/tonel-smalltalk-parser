@@ -1,6 +1,6 @@
 [project]
 name = "tonel-smalltalk-parser"
-version = "0.2.2"
+version = "0.2.3"
 description = "A Python library for parsing Tonel-formatted Smalltalk source code with comprehensive BNF grammar definitions"
 readme = "README.md"
 license = { text = "MIT" }
