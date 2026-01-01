@@ -11,17 +11,27 @@ class TestLintIssue:
 
     def test_init(self):
         """Test LintIssue initialization."""
-        issue = LintIssue("warning", "Test message", 10)
+        issue = LintIssue(
+            "warning",
+            "Test message",
+            class_name="TestClass",
+            selector="testMethod",
+            is_class_method=False,
+        )
         assert issue.severity == "warning"
         assert issue.message == "Test message"
-        assert issue.line_number == 10
+        assert issue.class_name == "TestClass"
+        assert issue.selector == "testMethod"
+        assert issue.is_class_method is False
 
-    def test_init_without_line_number(self):
-        """Test LintIssue initialization without line number."""
+    def test_init_without_location(self):
+        """Test LintIssue initialization without location info."""
         issue = LintIssue("error", "Test message")
         assert issue.severity == "error"
         assert issue.message == "Test message"
-        assert issue.line_number is None
+        assert issue.class_name is None
+        assert issue.selector is None
+        assert issue.is_class_method is None
 
 
 class TestTonelLinter:
@@ -111,6 +121,8 @@ STTestClass >> var1 [
         assert len(issues) == 1
         assert issues[0].severity == "warning"
         assert "No class prefix" in issues[0].message
+        assert issues[0].class_name == "Object"
+        assert issues[0].selector is None
 
     def test_check_class_prefix_with_good_prefix(self):
         """Test class prefix checking with good prefix."""
@@ -145,6 +157,7 @@ STTestClass >> var1 [
         class_def = ClassDefinition(
             type="Class",
             metadata={
+                "name": "#TestClass",
                 "instVars": [
                     "var1",
                     "var2",
@@ -157,7 +170,7 @@ STTestClass >> var1 [
                     "var9",
                     "var10",
                     "var11",
-                ]
+                ],
             },
         )
         tonel_file = TonelFile(comment=None, class_definition=class_def, methods=[])
@@ -169,6 +182,7 @@ STTestClass >> var1 [
         assert len(issues) == 1
         assert issues[0].severity == "warning"
         assert "Too many instance variables" in issues[0].message
+        assert issues[0].class_name == "TestClass"
 
     def test_check_method_length(self):
         """Test method length checking."""
@@ -191,6 +205,9 @@ STTestClass >> var1 [
         assert len(issues) == 1
         assert issues[0].severity == "warning"
         assert "long:" in issues[0].message
+        assert issues[0].class_name == "TestClass"
+        assert issues[0].selector == "longMethod"
+        assert issues[0].is_class_method is False
 
     def test_check_method_length_error(self):
         """Test method length checking with error threshold."""
@@ -213,6 +230,9 @@ STTestClass >> var1 [
         assert len(issues) == 1
         assert issues[0].severity == "error"
         assert "too long:" in issues[0].message
+        assert issues[0].class_name == "TestClass"
+        assert issues[0].selector == "veryLongMethod"
+        assert issues[0].is_class_method is False
 
     def test_check_direct_access(self):
         """Test direct instance variable access checking."""
@@ -236,6 +256,9 @@ STTestClass >> var1 [
         assert len(issues) == 2
         assert all(issue.severity == "warning" for issue in issues)
         assert all("Direct access" in issue.message for issue in issues)
+        assert all(issue.class_name == "TestClass" for issue in issues)
+        assert all(issue.selector == "badMethod" for issue in issues)
+        assert all(issue.is_class_method is False for issue in issues)
 
     def test_check_direct_access_in_accessor(self):
         """Test that direct access is allowed in accessor methods."""
