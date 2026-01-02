@@ -198,6 +198,50 @@ class TonelLinter:
 
         return issues
 
+    def _is_accessor_method(self, method: MethodDefinition) -> bool:
+        """Check if method is an accessor method.
+
+        Accessor methods are allowed to directly access instance variables.
+        Patterns include: accessing, private-accessing, accessing-properties, etc.
+
+        Args:
+            method: The method to check
+
+        Returns:
+            bool: True if method is an accessor method
+
+        """
+        category = method.metadata.get("category", "") if method.metadata else ""
+        category_lower = category.lower()
+
+        # Any category containing 'accessing' is considered an accessor
+        return "accessing" in category_lower
+
+    def _is_initializer_method(self, method: MethodDefinition) -> bool:
+        """Check if method is an initializer method.
+
+        Initializer methods are allowed to directly access instance variables.
+        Patterns include: initialization, initializing, initialize-release,
+        class initialization, etc.
+
+        Args:
+            method: The method to check
+
+        Returns:
+            bool: True if method is an initializer method
+
+        """
+        category = method.metadata.get("category", "") if method.metadata else ""
+        category_lower = category.lower()
+
+        # Check for various initialization patterns
+        initialization_patterns = [
+            "initializ",  # Matches: initialization, initializing, initialize-release
+            "class initialization",
+        ]
+
+        return any(pattern in category_lower for pattern in initialization_patterns)
+
     def _check_direct_access(
         self, method: MethodDefinition, inst_vars: set
     ) -> list[LintIssue]:
@@ -205,10 +249,7 @@ class TonelLinter:
         issues = []
 
         # Skip accessor and initialization methods
-        category = method.metadata.get("category", "") if method.metadata else ""
-        if any(
-            keyword in category.lower() for keyword in ["accessing", "initialization"]
-        ):
+        if self._is_accessor_method(method) or self._is_initializer_method(method):
             return issues
 
         # Check method body for direct variable access
