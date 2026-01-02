@@ -304,6 +304,111 @@ STTestClass >> var1 [
         # Should have no issues for accessor methods
         assert len(issues) == 0
 
+    def test_check_direct_access_in_private_accessing(self):
+        """Test that direct access is allowed in private-accessing methods."""
+        from tonel_smalltalk_parser.tonel_parser import MethodDefinition
+
+        # Private accessor method with direct access (should be allowed)
+        method = MethodDefinition(
+            class_name="TestClass",
+            is_class_method=False,
+            selector="privateVar:",
+            body="    var1 := aValue",
+            metadata={"category": "#private-accessing"},
+        )
+
+        inst_vars = {"var1"}
+
+        linter = TonelLinter()
+        issues = linter._check_direct_access(method, inst_vars)
+
+        # Should have no issues for private-accessing methods
+        assert len(issues) == 0
+
+    def test_check_direct_access_in_accessing_properties(self):
+        """Test that direct access is allowed in accessing-properties methods."""
+        from tonel_smalltalk_parser.tonel_parser import MethodDefinition
+
+        # Accessing-properties method with direct access (should be allowed)
+        method = MethodDefinition(
+            class_name="TestClass",
+            is_class_method=False,
+            selector="getProp",
+            body="    ^ var1",
+            metadata={"category": "#accessing-properties"},
+        )
+
+        inst_vars = {"var1"}
+
+        linter = TonelLinter()
+        issues = linter._check_direct_access(method, inst_vars)
+
+        # Should have no issues for accessing-properties methods
+        assert len(issues) == 0
+
+    def test_check_direct_access_in_initializing(self):
+        """Test that direct access is allowed in initializing methods."""
+        from tonel_smalltalk_parser.tonel_parser import MethodDefinition
+
+        # Initializing method with direct access (should be allowed)
+        method = MethodDefinition(
+            class_name="TestClass",
+            is_class_method=False,
+            selector="initialize",
+            body="    var1 := 0.\n    var2 := nil",
+            metadata={"category": "#initializing"},
+        )
+
+        inst_vars = {"var1", "var2"}
+
+        linter = TonelLinter()
+        issues = linter._check_direct_access(method, inst_vars)
+
+        # Should have no issues for initializing methods
+        assert len(issues) == 0
+
+    def test_check_direct_access_in_initialize_release(self):
+        """Test that direct access is allowed in initialize-release methods."""
+        from tonel_smalltalk_parser.tonel_parser import MethodDefinition
+
+        # Initialize-release method with direct access (should be allowed)
+        method = MethodDefinition(
+            class_name="TestClass",
+            is_class_method=False,
+            selector="release",
+            body="    var1 := nil",
+            metadata={"category": "#initialize-release"},
+        )
+
+        inst_vars = {"var1"}
+
+        linter = TonelLinter()
+        issues = linter._check_direct_access(method, inst_vars)
+
+        # Should have no issues for initialize-release methods
+        assert len(issues) == 0
+
+    def test_check_direct_access_in_class_initialization(self):
+        """Test that direct access is allowed in class initialization methods."""
+        from tonel_smalltalk_parser.tonel_parser import MethodDefinition
+
+        # Class initialization method with direct access (should be allowed)
+        method = MethodDefinition(
+            class_name="TestClass",
+            is_class_method=True,
+            selector="initialize",
+            body="    ClassVar := Dictionary new",
+            metadata={"category": "#class initialization"},
+        )
+
+        inst_vars = {"ClassVar"}
+
+        linter = TonelLinter()
+        issues = linter._check_direct_access(method, inst_vars)
+
+        # Should have no issues for class initialization methods
+        assert len(issues) == 0
+
     def test_print_summary(self):
         """Test summary printing."""
         linter = TonelLinter()
