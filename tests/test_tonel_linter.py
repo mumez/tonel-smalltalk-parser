@@ -184,6 +184,29 @@ STTestClass >> var1 [
         assert "Too many instance variables" in issues[0].message
         assert issues[0].class_name == "TestClass"
 
+    def test_check_instance_variables_multiline(self):
+        """Test instance variable count with multi-line format."""
+        linter = TonelLinter()
+
+        # Test with multi-line instVars (like the Money example)
+        content = """Class {
+\t#name : #Money,
+\t#superclass : #Object,
+\t#instVars : [
+\t\t'amount',
+\t\t'currency'
+\t],
+\t#category : #MoneySystem
+}"""
+
+        issues = linter.lint(content)
+
+        # Should have only prefix warning, NOT instance variable warning
+        assert len(issues) == 1
+        assert issues[0].severity == "warning"
+        assert "No class prefix" in issues[0].message
+        assert "Too many instance variables" not in issues[0].message
+
     def test_check_method_length(self):
         """Test method length checking."""
         from tonel_smalltalk_parser.tonel_parser import MethodDefinition
