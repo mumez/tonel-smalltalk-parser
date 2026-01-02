@@ -159,42 +159,117 @@ class TonelParser(BaseParser):
 
         result = {}
 
-        # Simple key-value pattern matching
-        # This is a simplified implementation that handles basic cases
-        pattern = re.compile(r"#([a-zA-Z][a-zA-Z0-9_]*)\s*:\s*([^,}]+)", re.MULTILINE)
+        # Find all key-value pairs
+        # Match key, then find the value which can be:
+        # - a symbol (#foo)
+        # - a string ('foo')
+        # - an array [...] with proper bracket matching
+        # - a number, boolean, or nil
 
-        for match in pattern.finditer(ston_str):
-            key = match.group(1)
-            value_str = match.group(2).strip()
+        pos = 0
+        while pos < len(ston_str):
+            # Find next key
+            key_match = re.search(r"#([a-zA-Z][a-zA-Z0-9_]*)\s*:", ston_str[pos:])
+            if not key_match:
+                break
 
-            # Parse value
-            if value_str.startswith("#"):
-                # Symbol
-                result[key] = value_str[1:]
-            elif value_str.startswith("'") and value_str.endswith("'"):
-                # String
-                result[key] = value_str[1:-1]
-            elif value_str.startswith("[") and value_str.endswith("]"):
-                # Array (simplified)
+            key = key_match.group(1)
+            value_start = pos + key_match.end()
+
+            # Skip whitespace after colon
+            while value_start < len(ston_str) and ston_str[value_start].isspace():
+                value_start += 1
+
+            if value_start >= len(ston_str):
+                break
+
+            # Determine value type and extract it
+            value_str = ""
+            value_end = value_start
+
+            if ston_str[value_start] == "[":
+                # Array - find matching ]
+                bracket_count = 0
+                in_string = False
+                i = value_start
+                while i < len(ston_str):
+                    ch = ston_str[i]
+                    if ch == "'" and (i == 0 or ston_str[i - 1] != "\\"):
+                        in_string = not in_string
+                    elif not in_string:
+                        if ch == "[":
+                            bracket_count += 1
+                        elif ch == "]":
+                            bracket_count -= 1
+                            if bracket_count == 0:
+                                value_end = i + 1
+                                break
+                    i += 1
+
+                value_str = ston_str[value_start:value_end].strip()
+
+                # Parse array content
                 array_content = value_str[1:-1].strip()
                 if array_content:
-                    items = [
-                        item.strip().strip("'") for item in array_content.split(",")
-                    ]
+                    # Split by comma, respecting strings
+                    items = []
+                    current_item = ""
+                    in_string = False
+                    for ch in array_content:
+                        if ch == "'" and (not current_item or current_item[-1] != "\\"):
+                            in_string = not in_string
+                            current_item += ch
+                        elif ch == "," and not in_string:
+                            item = current_item.strip().strip("'\"")
+                            if item:
+                                items.append(item)
+                            current_item = ""
+                        else:
+                            current_item += ch
+                    # Don't forget the last item
+                    item = current_item.strip().strip("'\"")
+                    if item:
+                        items.append(item)
                     result[key] = items
                 else:
                     result[key] = []
-            elif value_str.isdigit():
-                # Number
-                result[key] = int(value_str)
-            elif value_str in ["true", "false"]:
-                # Boolean
-                result[key] = value_str == "true"
-            elif value_str == "nil":
-                # Nil
-                result[key] = None
+
             else:
-                # Default to string
-                result[key] = value_str
+                # Non-array value - find end (comma or closing brace)
+                value_end = value_start
+                in_string = False
+                while value_end < len(ston_str):
+                    ch = ston_str[value_end]
+                    if ch == "'" and (
+                        value_end == 0 or ston_str[value_end - 1] != "\\"
+                    ):
+                        in_string = not in_string
+                    elif not in_string and ch in ",}":
+                        break
+                    value_end += 1
+
+                value_str = ston_str[value_start:value_end].strip()
+
+                # Parse non-array value
+                if value_str.startswith("#"):
+                    # Symbol
+                    result[key] = value_str[1:]
+                elif value_str.startswith("'") and value_str.endswith("'"):
+                    # String
+                    result[key] = value_str[1:-1]
+                elif value_str.isdigit():
+                    # Number
+                    result[key] = int(value_str)
+                elif value_str in ["true", "false"]:
+                    # Boolean
+                    result[key] = value_str == "true"
+                elif value_str == "nil":
+                    # Nil
+                    result[key] = None
+                else:
+                    # Default to string
+                    result[key] = value_str
+
+            pos = value_end
 
         return result
